@@ -149,7 +149,16 @@ Write Python code in n8n Code nodes with proper limitations awareness.
 # Select "n8n-mcp-skills" from the list
 ```
 
-**Method 3: Manual Installation**
+**Method 3: Install with sk**
+
+Install via [sk](https://github.com/803/skills-supply), the universal package manager for AI agent skills (supports Claude, Codex, OpenCode, etc...).
+
+```bash
+sk pkg add claude-plugin n8n-mcp-skills@czlonkowski/n8n-skills
+sk sync
+```
+
+**Method 4: Manual Installation**
 ```bash
 # 1. Clone this repository
 git clone https://github.com/czlonkowski/n8n-skills.git

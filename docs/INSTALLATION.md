@@ -81,7 +81,18 @@ ls ~/.claude/skills/
 
 ---
 
-### Method 2: Claude.ai (Web Interface)
+### Method 2: Install with sk
+
+Install via [sk](https://github.com/803/skills-supply), the universal package manager for AI agent skills (supports Claude, Codex, OpenCode, etc...).
+
+```bash
+sk pkg add claude-plugin n8n-mcp-skills@czlonkowski/n8n-skills
+sk sync
+```
+
+---
+
+### Method 3: Claude.ai (Web Interface)
 
 **Step 1**: Download skill folders
 
@@ -116,7 +127,7 @@ You should see all 5 n8n skills listed.
 
 ---
 
-### Method 3: Claude API / SDK
+### Method 4: Claude API / SDK
 
 **Step 1**: Install via package manager
 
