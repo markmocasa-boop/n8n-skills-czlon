@@ -81,11 +81,12 @@ ls ~/.claude/skills/
 
 ---
 
-### Method 2: Install with sk
+### Method 2: Install with `sk`
 
-Install via [sk](https://github.com/803/skills-supply), the universal package manager for AI agent skills (supports Claude, Codex, OpenCode, etc...).
+Install n8n-skills via [sk](https://github.com/803/skills-supply) (supports Codex, Amp, OpenCode, Factory, Claude Code etc...).
 
 ```bash
+# Add --global flag if you'd like to install in user-scope (defaults to project-scope)
 sk pkg add claude-plugin n8n-mcp-skills@czlonkowski/n8n-skills
 sk sync
 ```
