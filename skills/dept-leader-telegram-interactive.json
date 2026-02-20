@@ -8,23 +8,31 @@
         "height": 480,
         "color": 4
       },
-      "id": "info-sticky",
+      "id": "ec898006-d27f-45b9-877a-fe9ff4654b54",
       "name": "📋 INFO",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-400, -400]
+      "position": [
+        -400,
+        -400
+      ]
     },
     {
       "parameters": {
-        "updates": ["message"],
+        "updates": [
+          "message"
+        ],
         "additionalFields": {}
       },
-      "id": "telegram-trigger",
+      "id": "254a2fcc-2ff9-4bc2-ba6f-7a4c9c1131d1",
       "name": "📱 Telegram Trigger",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.1,
-      "position": [0, 300],
-      "webhookId": "agent-dept-leader-telegram",
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "667a92be-f823-4e57-96c4-32d12f40458e",
       "credentials": {
         "telegramApi": {
           "id": "TELEGRAM_BOT_CREDENTIAL_ID",
@@ -43,7 +51,7 @@
           },
           "conditions": [
             {
-              "id": "voice-check",
+              "id": "a5f3d3f5-7169-4038-ace9-dec488363834",
               "leftValue": "={{ $json.message.voice }}",
               "rightValue": "",
               "operator": {
@@ -57,11 +65,14 @@
         },
         "options": {}
       },
-      "id": "check-voice-or-text",
+      "id": "b9f21210-17c4-4932-a8b6-2cdea0528f8a",
       "name": "🔀 Voice oder Text?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [260, 300],
+      "position": [
+        260,
+        300
+      ],
       "notes": "Prüft ob die Nachricht eine Voice Message oder Text enthält"
     },
     {
@@ -74,7 +85,7 @@
           },
           "conditions": [
             {
-              "id": "auth-check",
+              "id": "2742116b-76dd-4b2c-96ae-d7e2b82b5951",
               "leftValue": "={{ $json.message.chat.id }}",
               "rightValue": "={{ $env.TELEGRAM_ALLOWED_CHAT_ID }}",
               "operator": {
@@ -87,11 +98,14 @@
         },
         "options": {}
       },
-      "id": "auth-check",
+      "id": "37289807-8d01-4c50-900e-846efbdb7b3d",
       "name": "🔒 Autorisierung prüfen",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [120, 300],
+      "position": [
+        120,
+        300
+      ],
       "notes": "Nur autorisierte Chat-IDs dürfen den Bot nutzen"
     },
     {
@@ -100,11 +114,14 @@
         "text": "⛔ Du bist nicht autorisiert, diesen Bot zu nutzen.",
         "additionalFields": {}
       },
-      "id": "unauthorized-response",
+      "id": "6b1c1524-e01e-470e-a6fa-9639d1564372",
       "name": "⛔ Nicht autorisiert",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [260, 500],
+      "position": [
+        260,
+        500
+      ],
       "credentials": {
         "telegramApi": {
           "id": "TELEGRAM_BOT_CREDENTIAL_ID",
@@ -123,11 +140,14 @@
         "jsonBody": "={{ JSON.stringify({ file_id: $json.message.voice.file_id }) }}",
         "options": {}
       },
-      "id": "get-voice-file",
+      "id": "ffc3211e-9c72-4cef-84ec-40c4ccf084ca",
       "name": "📥 Voice File Info holen",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [520, 200],
+      "position": [
+        520,
+        200
+      ],
       "notes": "Holt die File-Informationen der Telegram Voice Message"
     },
     {
@@ -143,11 +163,14 @@
           }
         }
       },
-      "id": "download-voice-file",
+      "id": "b7da1314-b002-4686-921d-fc4bc2b53145",
       "name": "⬇️ Voice File herunterladen",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [740, 200],
+      "position": [
+        740,
+        200
+      ],
       "notes": "Lädt die OGG-Audiodatei der Voice Message herunter"
     },
     {
@@ -183,11 +206,14 @@
           "timeout": 30000
         }
       },
-      "id": "whisper-stt",
+      "id": "ffe818f5-be7a-46e1-9628-b05ee76e7a44",
       "name": "🎤 Whisper Speech-to-Text",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [960, 200],
+      "position": [
+        960,
+        200
+      ],
       "credentials": {
         "openAiApi": {
           "id": "OPENAI_CREDENTIAL_ID",
@@ -200,46 +226,57 @@
       "parameters": {
         "jsCode": "// ========================================\n// VOICE → TEXT EXTRAKTION\n// Extrahiert den transkribierten Text aus Whisper Response\n// ========================================\n\nconst whisperResponse = $input.first().json;\nconst chatId = $('📱 Telegram Trigger').first().json.message.chat.id;\nconst firstName = $('📱 Telegram Trigger').first().json.message.from.first_name || 'User';\n\nreturn {\n  json: {\n    userMessage: whisperResponse.text || '',\n    chatId: chatId,\n    firstName: firstName,\n    inputType: 'voice',\n    messageId: $('📱 Telegram Trigger').first().json.message.message_id\n  }\n};"
       },
-      "id": "extract-voice-text",
+      "id": "0e4d6751-da21-4d04-bd77-69b4e04a1f76",
       "name": "📝 Voice-Text extrahieren",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1180, 200],
+      "position": [
+        1180,
+        200
+      ],
       "notes": "Extrahiert den transkribierten Text und Metadaten"
     },
     {
       "parameters": {
         "jsCode": "// ========================================\n// TEXT NACHRICHT EXTRAHIEREN\n// Extrahiert den Text aus der Telegram-Nachricht\n// ========================================\n\nconst msg = $('📱 Telegram Trigger').first().json.message;\n\nreturn {\n  json: {\n    userMessage: msg.text || '',\n    chatId: msg.chat.id,\n    firstName: msg.from.first_name || 'User',\n    inputType: 'text',\n    messageId: msg.message_id\n  }\n};"
       },
-      "id": "extract-text-msg",
+      "id": "5df53c82-7f80-4941-89b1-1456c7558a4c",
       "name": "💬 Text extrahieren",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [520, 400],
+      "position": [
+        520,
+        400
+      ],
       "notes": "Extrahiert den Text und Metadaten aus der Telegram-Textnachricht"
     },
     {
       "parameters": {
-        "mode": "combine",
-        "mergeByFields": {},
+        "mode": "chooseBranch",
         "options": {}
       },
-      "id": "merge-inputs",
+      "id": "58a1394e-75e6-4376-85a0-ea319b085532",
       "name": "🔗 Eingabe zusammenführen",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
-      "position": [1400, 300],
+      "position": [
+        1400,
+        300
+      ],
       "notes": "Führt Voice- und Text-Eingaben zusammen zu einem einheitlichen Format"
     },
     {
       "parameters": {
         "jsCode": "// ========================================\n// INTENT ERKENNUNG\n// Erkennt den Befehl/die Absicht des Nutzers\n// ========================================\n\nconst input = $input.first().json;\nconst msg = input.userMessage.toLowerCase().trim();\n\n// Intent-Mapping\nlet intent = 'conversation'; // Default: freie Konversation\nlet targetWorkflow = null;\nlet targetLabel = null;\n\n// Einzelne Workflow-Abruf Patterns\nconst patterns = [\n  { pattern: /\\b(seo|geo|search|suche|organisch)\\b/i, intent: 'fetch_single', workflow: 'seo_dashboard', label: 'SEO/GEO Dashboard' },\n  { pattern: /\\b(funnel|conversion|trichter|konversion)\\b/i, intent: 'fetch_single', workflow: 'funnel_report', label: 'Funnel & Conversion' },\n  { pattern: /\\b(clarity|ux|usability|klick|heatmap|dead.?click|rage.?click)\\b/i, intent: 'fetch_single', workflow: 'clarity_report', label: 'Microsoft Clarity' },\n  { pattern: /\\b(keyword|ranking|position|serp)\\b/i, intent: 'fetch_single', workflow: 'keyword_tracker', label: 'Keyword Rankings' },\n  { pattern: /\\b(linkedin|nachricht|dm|message|inbox)\\b/i, intent: 'fetch_single', workflow: 'linkedin_monitor', label: 'LinkedIn Monitor' },\n  { pattern: /\\b(ai.?visibility|sichtbarkeit|ki.?sichtbar|chatgpt|perplexity)\\b/i, intent: 'fetch_single', workflow: 'ai_visibility', label: 'AI Visibility' },\n  { pattern: /\\b(comment|kommentar|sentiment|stimmung|meinung)\\b/i, intent: 'fetch_single', workflow: 'comment_intelligence', label: 'Comment Intelligence' },\n  \n  // Komplett-Report\n  { pattern: /\\b(komplett|gesamt|alles|vollständig|all|aktualisier.+alle|ganzer.?report)\\b/i, intent: 'fetch_all', workflow: null, label: 'Kompletter Report' },\n  \n  // Letzten Report anzeigen\n  { pattern: /\\b(letzt|aktuel|zeig.+report|report.+zeig|zusammenfassung|summary|status|überblick|übersicht)\\b/i, intent: 'show_latest', workflow: null, label: 'Letzter Report' },\n  \n  // Prioritäten / Action Items\n  { pattern: /\\b(priorit|todo|aufgab|handlung|empfehlung|action|maßnahm|was.+tun|next.?step)\\b/i, intent: 'show_actions', workflow: null, label: 'Handlungsempfehlungen' },\n  \n  // Hilfe\n  { pattern: /^\\/(start|help|hilfe)$/i, intent: 'help', workflow: null, label: 'Hilfe' },\n  { pattern: /\\b(hilfe|was kannst|help|befehle|commands)\\b/i, intent: 'help', workflow: null, label: 'Hilfe' }\n];\n\nfor (const p of patterns) {\n  if (p.pattern.test(msg)) {\n    intent = p.intent;\n    targetWorkflow = p.workflow;\n    targetLabel = p.label;\n    break;\n  }\n}\n\nreturn {\n  json: {\n    ...input,\n    intent: intent,\n    targetWorkflow: targetWorkflow,\n    targetLabel: targetLabel\n  }\n};"
       },
-      "id": "intent-recognition",
+      "id": "2fcef4bc-9d52-45bc-959a-896a144ff7f1",
       "name": "🧠 Intent erkennen",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1620, 300],
+      "position": [
+        1620,
+        300
+      ],
       "notes": "Erkennt die Absicht: einzelner Workflow, kompletter Report, letzten Report zeigen, Konversation"
     },
     {
@@ -248,8 +285,21 @@
           "values": [
             {
               "conditions": {
-                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
-                "conditions": [{ "leftValue": "={{ $json.intent }}", "rightValue": "help", "operator": { "type": "string", "operation": "equals" } }],
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "help",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
                 "combinator": "and"
               },
               "renameOutput": true,
@@ -257,8 +307,21 @@
             },
             {
               "conditions": {
-                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
-                "conditions": [{ "leftValue": "={{ $json.intent }}", "rightValue": "fetch_single", "operator": { "type": "string", "operation": "equals" } }],
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "fetch_single",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
                 "combinator": "and"
               },
               "renameOutput": true,
@@ -266,8 +329,21 @@
             },
             {
               "conditions": {
-                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
-                "conditions": [{ "leftValue": "={{ $json.intent }}", "rightValue": "fetch_all", "operator": { "type": "string", "operation": "equals" } }],
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "fetch_all",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
                 "combinator": "and"
               },
               "renameOutput": true,
@@ -275,10 +351,28 @@
             },
             {
               "conditions": {
-                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
                 "conditions": [
-                  { "leftValue": "={{ $json.intent }}", "rightValue": "show_latest", "operator": { "type": "string", "operation": "equals" } },
-                  { "leftValue": "={{ $json.intent }}", "rightValue": "show_actions", "operator": { "type": "string", "operation": "equals" } }
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "show_latest",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "show_actions",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
                 ],
                 "combinator": "or"
               },
@@ -295,11 +389,14 @@
           "allMatchingOutputs": false
         }
       },
-      "id": "intent-router",
+      "id": "71a631bd-3cd0-428f-b9af-aad845ed2b1d",
       "name": "🔀 Intent Router",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
-      "position": [1840, 300],
+      "position": [
+        1840,
+        300
+      ],
       "notes": "Routet basierend auf dem erkannten Intent zu verschiedenen Verarbeitungspfaden"
     },
     {
@@ -310,11 +407,14 @@
           "parse_mode": "Markdown"
         }
       },
-      "id": "send-help",
+      "id": "7578a850-c6f9-495e-b8ff-1c11ea321380",
       "name": "❓ Hilfe senden",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2100, 0],
+      "position": [
+        2100,
+        0
+      ],
       "credentials": {
         "telegramApi": {
           "id": "TELEGRAM_BOT_CREDENTIAL_ID",
@@ -331,11 +431,14 @@
           "parse_mode": "Markdown"
         }
       },
-      "id": "send-fetching-single",
+      "id": "70f44981-bb52-4940-89c2-36a78709719e",
       "name": "⏳ Abruf-Info senden",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2100, 200],
+      "position": [
+        2100,
+        200
+      ],
       "credentials": {
         "telegramApi": {
           "id": "TELEGRAM_BOT_CREDENTIAL_ID",
@@ -348,11 +451,14 @@
       "parameters": {
         "jsCode": "// ========================================\n// EINZELNEN SUB-WORKFLOW ABRUFEN\n// Baut die Webhook-URL dynamisch zusammen\n// ========================================\n\nconst input = $('🧠 Intent erkennen').first().json;\nconst target = input.targetWorkflow;\n\n// Webhook URL Mapping aus Umgebungsvariablen\nconst webhookMap = {\n  seo_dashboard: $env.WEBHOOK_SEO_DASHBOARD,\n  funnel_report: $env.WEBHOOK_FUNNEL_REPORT,\n  clarity_report: $env.WEBHOOK_CLARITY_REPORT,\n  keyword_tracker: $env.WEBHOOK_KEYWORD_TRACKER,\n  linkedin_monitor: $env.WEBHOOK_LINKEDIN_MONITOR\n};\n\n// Google Sheet ID Mapping für direkte Sheet-Quellen\nconst sheetMap = {\n  ai_visibility: $env.SHEET_AI_VISIBILITY,\n  comment_intelligence: $env.SHEET_COMMENT_INTELLIGENCE\n};\n\n// Datumsbereich berechnen (aktuelle Woche)\nconst now = new Date();\nconst dayOfWeek = now.getDay();\nconst daysToLastMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;\nconst weekStart = new Date(now);\nweekStart.setDate(now.getDate() - daysToLastMonday - 7);\nconst weekEnd = new Date(weekStart);\nweekEnd.setDate(weekStart.getDate() + 6);\nconst formatDate = (d) => d.toISOString().split('T')[0];\n\nconst isWebhookSource = !!webhookMap[target];\nconst isSheetSource = !!sheetMap[target];\n\nreturn {\n  json: {\n    ...input,\n    webhookUrl: webhookMap[target] || null,\n    sheetId: sheetMap[target] || null,\n    isWebhookSource: isWebhookSource,\n    isSheetSource: isSheetSource,\n    dateRange: `${formatDate(weekStart)} bis ${formatDate(weekEnd)}`\n  }\n};"
       },
-      "id": "build-single-request",
+      "id": "913eb06c-9449-4da5-b094-1576ea7ed8cc",
       "name": "🔧 Sub-Workflow Request bauen",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2320, 200],
+      "position": [
+        2320,
+        200
+      ],
       "notes": "Baut die Webhook-URL oder Sheet-ID für den einzelnen Sub-Workflow zusammen"
     },
     {
@@ -365,7 +471,7 @@
           },
           "conditions": [
             {
-              "id": "webhook-check",
+              "id": "b52067b3-cd00-45b1-b601-531349668f8b",
               "leftValue": "={{ $json.isWebhookSource }}",
               "rightValue": true,
               "operator": {
@@ -378,11 +484,14 @@
         },
         "options": {}
       },
-      "id": "check-source-type",
+      "id": "9b26c295-f8c1-4dc8-b2cc-5f72691403f6",
       "name": "🔀 Webhook oder Sheet?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2540, 200],
+      "position": [
+        2540,
+        200
+      ],
       "notes": "Unterscheidet zwischen Webhook-basierten und Sheet-basierten Datenquellen"
     },
     {
@@ -397,11 +506,14 @@
           "timeout": 120000
         }
       },
-      "id": "fetch-single-webhook",
+      "id": "b6832f1e-ce5a-4dc3-825e-03b1a59b7266",
       "name": "🌐 Sub-Workflow via Webhook",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2760, 100],
+      "position": [
+        2760,
+        100
+      ],
       "continueOnFail": true,
       "notes": "Ruft den einzelnen Sub-Workflow via Webhook ab (Timeout 120s)"
     },
@@ -423,11 +535,14 @@
           "limit": 1
         }
       },
-      "id": "fetch-single-sheet",
+      "id": "c7c867e7-f876-4902-a299-2e9f10faf25e",
       "name": "📊 Daten aus Sheet laden",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2760, 300],
+      "position": [
+        2760,
+        300
+      ],
       "continueOnFail": true,
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -441,11 +556,14 @@
       "parameters": {
         "jsCode": "// ========================================\n// EINZELERGEBNIS AUFBEREITEN + AI ANALYSE\n// Formatiert das Ergebnis und lässt AI eine Zusammenfassung erstellen\n// ========================================\n\nconst intentData = $('🧠 Intent erkennen').first().json;\nlet rawData;\n\ntry {\n  rawData = $input.first().json;\n} catch (e) {\n  rawData = { error: 'Daten konnten nicht abgerufen werden: ' + e.message };\n}\n\nconst hasError = !rawData || rawData.error || rawData.errorMessage;\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    firstName: intentData.firstName,\n    targetLabel: intentData.targetLabel,\n    targetWorkflow: intentData.targetWorkflow,\n    userMessage: intentData.userMessage,\n    rawData: rawData,\n    hasError: hasError,\n    errorMessage: hasError ? (rawData?.error || rawData?.errorMessage || 'Unbekannter Fehler') : null\n  }\n};"
       },
-      "id": "prepare-single-result",
+      "id": "35c4a58a-04ce-43df-91e0-7563a4b5585a",
       "name": "📦 Einzelergebnis aufbereiten",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2980, 200],
+      "position": [
+        2980,
+        200
+      ],
       "notes": "Vereinheitlicht die Ergebnisse aus Webhook und Sheet-Quellen"
     },
     {
@@ -461,11 +579,14 @@
           "timeout": 60000
         }
       },
-      "id": "ai-single-analysis",
+      "id": "af9efcaa-7f56-4979-9efb-214e5af3f2e6",
       "name": "🤖 AI Einzelanalyse",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3200, 200],
+      "position": [
+        3200,
+        200
+      ],
       "credentials": {
         "openAiApi": {
           "id": "OPENAI_CREDENTIAL_ID",
@@ -478,11 +599,14 @@
       "parameters": {
         "jsCode": "// ========================================\n// AI RESPONSE FÜR TELEGRAM AUFBEREITEN\n// Extrahiert den Text aus der OpenAI Response\n// ========================================\n\nconst response = $input.first().json;\nconst intentData = $('🧠 Intent erkennen').first().json;\n\nlet responseText;\ntry {\n  responseText = response.choices[0].message.content;\n} catch (e) {\n  responseText = '❌ Die AI-Analyse konnte nicht durchgeführt werden. Bitte versuche es erneut.';\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    responseText: responseText\n  }\n};"
       },
-      "id": "format-single-response",
+      "id": "3a1bd7a1-98b7-40dc-be24-63f1fc84bf60",
       "name": "📝 Antwort formatieren",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3420, 200],
+      "position": [
+        3420,
+        200
+      ],
       "notes": "Formatiert die AI-Antwort für Telegram"
     },
     {
@@ -493,11 +617,14 @@
           "parse_mode": "Markdown"
         }
       },
-      "id": "send-single-result",
+      "id": "026f3638-90e6-4b83-93cf-78065a56f15e",
       "name": "📤 Ergebnis senden",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [3640, 200],
+      "position": [
+        3640,
+        200
+      ],
       "credentials": {
         "telegramApi": {
           "id": "TELEGRAM_BOT_CREDENTIAL_ID",
@@ -514,11 +641,14 @@
           "parse_mode": "Markdown"
         }
       },
-      "id": "send-fetching-all",
+      "id": "4ac0bb71-1982-405f-ba4b-4ba9d7a849ba",
       "name": "⏳ Komplett-Abruf Info",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2100, 400],
+      "position": [
+        2100,
+        400
+      ],
       "credentials": {
         "telegramApi": {
           "id": "TELEGRAM_BOT_CREDENTIAL_ID",
@@ -539,11 +669,14 @@
           "timeout": 300000
         }
       },
-      "id": "trigger-full-report",
+      "id": "e49bfe35-efb8-4cbb-9293-f857622e586e",
       "name": "🔄 Komplett-Report triggern",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2320, 400],
+      "position": [
+        2320,
+        400
+      ],
       "continueOnFail": true,
       "notes": "Triggert den Haupt-Workflow 'Agent - Wöchentlicher Abteilungsleiter Report' via Webhook"
     },
@@ -555,11 +688,14 @@
           "parse_mode": "Markdown"
         }
       },
-      "id": "send-full-report-done",
+      "id": "537e16cf-52f7-4b11-9055-bff1ada1c54e",
       "name": "✅ Komplett-Report fertig",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2540, 400],
+      "position": [
+        2540,
+        400
+      ],
       "credentials": {
         "telegramApi": {
           "id": "TELEGRAM_BOT_CREDENTIAL_ID",
@@ -586,11 +722,14 @@
           "limit": 1
         }
       },
-      "id": "load-latest-snapshot",
+      "id": "eceb6fed-9eba-40f2-a148-84dd6ccdaee3",
       "name": "📂 Letzten Snapshot laden",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2100, 600],
+      "position": [
+        2100,
+        600
+      ],
       "continueOnFail": true,
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -604,11 +743,14 @@
       "parameters": {
         "jsCode": "// ========================================\n// LETZTEN REPORT / ACTION ITEMS AUFBEREITEN\n// ========================================\n\nconst intentData = $('🧠 Intent erkennen').first().json;\nconst snapshot = $input.first().json;\n\nlet aiAnalysis = null;\nlet dateLabel = 'unbekannt';\nlet overallStatus = 'unknown';\n\ntry {\n  if (snapshot.AIAnalysis) {\n    aiAnalysis = JSON.parse(snapshot.AIAnalysis);\n  }\n  dateLabel = snapshot.DateLabel || 'unbekannt';\n  overallStatus = snapshot.OverallStatus || 'unknown';\n} catch (e) {\n  // Fallback\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    firstName: intentData.firstName,\n    intent: intentData.intent,\n    userMessage: intentData.userMessage,\n    dateLabel: dateLabel,\n    overallStatus: overallStatus,\n    aiAnalysis: aiAnalysis,\n    hasData: !!aiAnalysis\n  }\n};"
       },
-      "id": "prepare-latest-report",
+      "id": "cd6c0fc6-1301-489e-abb8-96cb6ccd5362",
       "name": "📦 Letzten Report aufbereiten",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2320, 600],
+      "position": [
+        2320,
+        600
+      ],
       "notes": "Bereitet den letzten Snapshot für die Telegram-Ausgabe auf"
     },
     {
@@ -624,11 +766,14 @@
           "timeout": 60000
         }
       },
-      "id": "ai-latest-analysis",
+      "id": "1d411cff-6e5b-4bd7-bb39-544bd9e70f67",
       "name": "🤖 AI Report-Zusammenfassung",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2540, 600],
+      "position": [
+        2540,
+        600
+      ],
       "credentials": {
         "openAiApi": {
           "id": "OPENAI_CREDENTIAL_ID",
@@ -641,11 +786,14 @@
       "parameters": {
         "jsCode": "// AI Response für Telegram extrahieren\nconst response = $input.first().json;\nconst intentData = $('🧠 Intent erkennen').first().json;\n\nlet text;\ntry {\n  text = response.choices[0].message.content;\n} catch (e) {\n  text = '❌ Konnte den Report nicht zusammenfassen. Versuche es erneut.';\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    responseText: text\n  }\n};"
       },
-      "id": "format-latest-response",
+      "id": "da9b2289-6bd1-41bf-b9e7-174527b088d0",
       "name": "📝 Report-Antwort formatieren",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2760, 600],
+      "position": [
+        2760,
+        600
+      ],
       "notes": "Formatiert die Report-Zusammenfassung für Telegram"
     },
     {
@@ -656,11 +804,14 @@
           "parse_mode": "Markdown"
         }
       },
-      "id": "send-latest-result",
+      "id": "145cb533-129a-4168-bd7a-9ace56b3cd3e",
       "name": "📤 Report-Zusammenfassung senden",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2980, 600],
+      "position": [
+        2980,
+        600
+      ],
       "credentials": {
         "telegramApi": {
           "id": "TELEGRAM_BOT_CREDENTIAL_ID",
@@ -682,11 +833,14 @@
           "timeout": 30000
         }
       },
-      "id": "ai-conversation",
+      "id": "a6d0e8ad-5f16-436b-a75e-3e5e2f7e5f61",
       "name": "🤖 AI Konversation",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2100, 800],
+      "position": [
+        2100,
+        800
+      ],
       "credentials": {
         "openAiApi": {
           "id": "OPENAI_CREDENTIAL_ID",
@@ -699,11 +853,14 @@
       "parameters": {
         "jsCode": "// Konversations-Response für Telegram\nconst response = $input.first().json;\nconst intentData = $('🧠 Intent erkennen').first().json;\n\nlet text;\ntry {\n  text = response.choices[0].message.content;\n} catch (e) {\n  text = '🤔 Ich konnte deine Nachricht leider nicht verarbeiten. Versuche es nochmal oder schreibe /help.';\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    responseText: text\n  }\n};"
       },
-      "id": "format-conversation-response",
+      "id": "cb819bef-3c32-4c9f-bd9e-36a746c70ffd",
       "name": "📝 Konversation formatieren",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2320, 800],
+      "position": [
+        2320,
+        800
+      ],
       "notes": "Formatiert die Konversations-Antwort für Telegram"
     },
     {
@@ -714,11 +871,14 @@
           "parse_mode": "Markdown"
         }
       },
-      "id": "send-conversation-result",
+      "id": "bf96c24f-ed39-43f6-b0d8-ce2281956358",
       "name": "📤 Konversation senden",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2540, 800],
+      "position": [
+        2540,
+        800
+      ],
       "credentials": {
         "telegramApi": {
           "id": "TELEGRAM_BOT_CREDENTIAL_ID",
@@ -729,11 +889,14 @@
     },
     {
       "parameters": {},
-      "id": "end-node",
+      "id": "ffdf4ba6-b11b-4b84-b895-e384b31119a7",
       "name": "✅ Done",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [3860, 300],
+      "position": [
+        3860,
+        300
+      ],
       "notes": "Workflow Complete"
     }
   ],
@@ -1150,11 +1313,21 @@
   },
   "staticData": null,
   "tags": [
-    { "name": "Agent", "id": "agent-tag" },
-    { "name": "Telegram", "id": "telegram-tag" },
-    { "name": "Interactive", "id": "interactive-tag" },
-    { "name": "Voice", "id": "voice-tag" },
-    { "name": "AI", "id": "ai-tag" }
+    {
+      "name": "Agent"
+    },
+    {
+      "name": "Telegram"
+    },
+    {
+      "name": "Interactive"
+    },
+    {
+      "name": "Voice"
+    },
+    {
+      "name": "AI"
+    }
   ],
   "triggerCount": 1,
   "versionId": "1",
