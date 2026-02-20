@@ -1,0 +1,1165 @@
+{
+  "name": "Agent - Abteilungsleiter Telegram Interaktiv",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# 🎙️ Abteilungsleiter Agent – Telegram Interaktiv\n\nDieser Workflow ermöglicht die **interaktive Kommunikation** mit dem Abteilungsleiter-Agenten über Telegram.\n\n## Features:\n- 🎤 **Spracheingabe** via Telegram Voice Messages (Whisper STT)\n- 💬 **Textingabe** via Telegram Chat\n- 🤖 **KI-Dialog** mit Konversationsgedächtnis\n- 🔄 **On-Demand Abruf** einzelner Sub-Workflows\n- 📊 **Ergebnis-Diskussion** im Chat\n\n## Befehle:\n- \"Zeig mir den SEO Report\" → Ruft SEO Dashboard ab\n- \"Wie steht's mit LinkedIn?\" → Ruft LinkedIn Monitor ab\n- \"Aktualisiere alle Daten\" → Triggert kompletten Report\n- \"Was sind die Top-Prioritäten?\" → Zeigt Action Items\n- Oder einfach frei über Ergebnisse diskutieren\n\n## Benötigte Credentials:\n- Telegram Bot API Token\n- OpenAI API (Whisper + GPT-4.1)\n- Google Sheets OAuth2",
+        "width": 520,
+        "height": 480,
+        "color": 4
+      },
+      "id": "info-sticky",
+      "name": "📋 INFO",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-400, -400]
+    },
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "id": "telegram-trigger",
+      "name": "📱 Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 300],
+      "webhookId": "agent-dept-leader-telegram",
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_BOT_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      },
+      "notes": "Empfängt alle Nachrichten (Text + Voice) vom autorisierten Telegram Chat"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "voice-check",
+              "leftValue": "={{ $json.message.voice }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-voice-or-text",
+      "name": "🔀 Voice oder Text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [260, 300],
+      "notes": "Prüft ob die Nachricht eine Voice Message oder Text enthält"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "auth-check",
+              "leftValue": "={{ $json.message.chat.id }}",
+              "rightValue": "={{ $env.TELEGRAM_ALLOWED_CHAT_ID }}",
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "auth-check",
+      "name": "🔒 Autorisierung prüfen",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [120, 300],
+      "notes": "Nur autorisierte Chat-IDs dürfen den Bot nutzen"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('📱 Telegram Trigger').item.json.message.chat.id }}",
+        "text": "⛔ Du bist nicht autorisiert, diesen Bot zu nutzen.",
+        "additionalFields": {}
+      },
+      "id": "unauthorized-response",
+      "name": "⛔ Nicht autorisiert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [260, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_BOT_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      },
+      "notes": "Antwortet bei nicht autorisiertem Zugriff"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $credentials.telegramApi.accessToken }}/getFile",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ file_id: $json.message.voice.file_id }) }}",
+        "options": {}
+      },
+      "id": "get-voice-file",
+      "name": "📥 Voice File Info holen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 200],
+      "notes": "Holt die File-Informationen der Telegram Voice Message"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.telegram.org/file/bot{{ $credentials.telegramApi.accessToken }}/{{ $json.result.file_path }}",
+        "authentication": "none",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "download-voice-file",
+      "name": "⬇️ Voice File herunterladen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [740, 200],
+      "notes": "Lädt die OGG-Audiodatei der Voice Message herunter"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "contentType": "multipart-form-data",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "name": "language",
+              "value": "de"
+            },
+            {
+              "name": "response_format",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "whisper-stt",
+      "name": "🎤 Whisper Speech-to-Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 200],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "Konvertiert die Voice Message zu Text via OpenAI Whisper (Deutsch)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// VOICE → TEXT EXTRAKTION\n// Extrahiert den transkribierten Text aus Whisper Response\n// ========================================\n\nconst whisperResponse = $input.first().json;\nconst chatId = $('📱 Telegram Trigger').first().json.message.chat.id;\nconst firstName = $('📱 Telegram Trigger').first().json.message.from.first_name || 'User';\n\nreturn {\n  json: {\n    userMessage: whisperResponse.text || '',\n    chatId: chatId,\n    firstName: firstName,\n    inputType: 'voice',\n    messageId: $('📱 Telegram Trigger').first().json.message.message_id\n  }\n};"
+      },
+      "id": "extract-voice-text",
+      "name": "📝 Voice-Text extrahieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1180, 200],
+      "notes": "Extrahiert den transkribierten Text und Metadaten"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// TEXT NACHRICHT EXTRAHIEREN\n// Extrahiert den Text aus der Telegram-Nachricht\n// ========================================\n\nconst msg = $('📱 Telegram Trigger').first().json.message;\n\nreturn {\n  json: {\n    userMessage: msg.text || '',\n    chatId: msg.chat.id,\n    firstName: msg.from.first_name || 'User',\n    inputType: 'text',\n    messageId: msg.message_id\n  }\n};"
+      },
+      "id": "extract-text-msg",
+      "name": "💬 Text extrahieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [520, 400],
+      "notes": "Extrahiert den Text und Metadaten aus der Telegram-Textnachricht"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {},
+        "options": {}
+      },
+      "id": "merge-inputs",
+      "name": "🔗 Eingabe zusammenführen",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1400, 300],
+      "notes": "Führt Voice- und Text-Eingaben zusammen zu einem einheitlichen Format"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// INTENT ERKENNUNG\n// Erkennt den Befehl/die Absicht des Nutzers\n// ========================================\n\nconst input = $input.first().json;\nconst msg = input.userMessage.toLowerCase().trim();\n\n// Intent-Mapping\nlet intent = 'conversation'; // Default: freie Konversation\nlet targetWorkflow = null;\nlet targetLabel = null;\n\n// Einzelne Workflow-Abruf Patterns\nconst patterns = [\n  { pattern: /\\b(seo|geo|search|suche|organisch)\\b/i, intent: 'fetch_single', workflow: 'seo_dashboard', label: 'SEO/GEO Dashboard' },\n  { pattern: /\\b(funnel|conversion|trichter|konversion)\\b/i, intent: 'fetch_single', workflow: 'funnel_report', label: 'Funnel & Conversion' },\n  { pattern: /\\b(clarity|ux|usability|klick|heatmap|dead.?click|rage.?click)\\b/i, intent: 'fetch_single', workflow: 'clarity_report', label: 'Microsoft Clarity' },\n  { pattern: /\\b(keyword|ranking|position|serp)\\b/i, intent: 'fetch_single', workflow: 'keyword_tracker', label: 'Keyword Rankings' },\n  { pattern: /\\b(linkedin|nachricht|dm|message|inbox)\\b/i, intent: 'fetch_single', workflow: 'linkedin_monitor', label: 'LinkedIn Monitor' },\n  { pattern: /\\b(ai.?visibility|sichtbarkeit|ki.?sichtbar|chatgpt|perplexity)\\b/i, intent: 'fetch_single', workflow: 'ai_visibility', label: 'AI Visibility' },\n  { pattern: /\\b(comment|kommentar|sentiment|stimmung|meinung)\\b/i, intent: 'fetch_single', workflow: 'comment_intelligence', label: 'Comment Intelligence' },\n  \n  // Komplett-Report\n  { pattern: /\\b(komplett|gesamt|alles|vollständig|all|aktualisier.+alle|ganzer.?report)\\b/i, intent: 'fetch_all', workflow: null, label: 'Kompletter Report' },\n  \n  // Letzten Report anzeigen\n  { pattern: /\\b(letzt|aktuel|zeig.+report|report.+zeig|zusammenfassung|summary|status|überblick|übersicht)\\b/i, intent: 'show_latest', workflow: null, label: 'Letzter Report' },\n  \n  // Prioritäten / Action Items\n  { pattern: /\\b(priorit|todo|aufgab|handlung|empfehlung|action|maßnahm|was.+tun|next.?step)\\b/i, intent: 'show_actions', workflow: null, label: 'Handlungsempfehlungen' },\n  \n  // Hilfe\n  { pattern: /^\\/(start|help|hilfe)$/i, intent: 'help', workflow: null, label: 'Hilfe' },\n  { pattern: /\\b(hilfe|was kannst|help|befehle|commands)\\b/i, intent: 'help', workflow: null, label: 'Hilfe' }\n];\n\nfor (const p of patterns) {\n  if (p.pattern.test(msg)) {\n    intent = p.intent;\n    targetWorkflow = p.workflow;\n    targetLabel = p.label;\n    break;\n  }\n}\n\nreturn {\n  json: {\n    ...input,\n    intent: intent,\n    targetWorkflow: targetWorkflow,\n    targetLabel: targetLabel\n  }\n};"
+      },
+      "id": "intent-recognition",
+      "name": "🧠 Intent erkennen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1620, 300],
+      "notes": "Erkennt die Absicht: einzelner Workflow, kompletter Report, letzten Report zeigen, Konversation"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [{ "leftValue": "={{ $json.intent }}", "rightValue": "help", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Hilfe"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [{ "leftValue": "={{ $json.intent }}", "rightValue": "fetch_single", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Einzelner Workflow"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [{ "leftValue": "={{ $json.intent }}", "rightValue": "fetch_all", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Kompletter Report"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [
+                  { "leftValue": "={{ $json.intent }}", "rightValue": "show_latest", "operator": { "type": "string", "operation": "equals" } },
+                  { "leftValue": "={{ $json.intent }}", "rightValue": "show_actions", "operator": { "type": "string", "operation": "equals" } }
+                ],
+                "combinator": "or"
+              },
+              "renameOutput": true,
+              "outputKey": "Report anzeigen"
+            }
+          ],
+          "fallbackOutput": {
+            "renameOutput": true,
+            "outputKey": "Konversation"
+          }
+        },
+        "options": {
+          "allMatchingOutputs": false
+        }
+      },
+      "id": "intent-router",
+      "name": "🔀 Intent Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [1840, 300],
+      "notes": "Routet basierend auf dem erkannten Intent zu verschiedenen Verarbeitungspfaden"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "=🏢 *Abteilungsleiter Agent – Hilfe*\n\nHallo {{ $json.firstName }}! Ich bin dein digitaler Abteilungsleiter.\n\n🎤 *Spracheingabe:* Sende mir eine Voice Message\n💬 *Texteingabe:* Oder schreibe mir einfach\n\n📊 *Verfügbare Berichte:*\n• \"SEO Report\" – SEO/GEO Dashboard\n• \"Funnel Report\" – Conversion-Daten\n• \"Clarity Report\" – UX/Heatmap-Daten\n• \"Keyword Report\" – Ranking-Positionen\n• \"LinkedIn Report\" – DM Monitoring\n• \"AI Visibility\" – KI-Sichtbarkeit\n• \"Comment Report\" – Sentiment-Analyse\n\n🔄 *Komplett-Report:*\n• \"Aktualisiere alle Daten\"\n• \"Kompletter Report\"\n\n📋 *Letzter Report:*\n• \"Zeig mir den aktuellen Status\"\n• \"Was sind die Prioritäten?\"\n\n💡 Du kannst auch frei über die Ergebnisse diskutieren!",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-help",
+      "name": "❓ Hilfe senden",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2100, 0],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_BOT_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      },
+      "notes": "Sendet die Hilfe-Nachricht mit allen verfügbaren Befehlen"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "=⏳ Moment, ich rufe den *{{ $json.targetLabel }}* ab...",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-fetching-single",
+      "name": "⏳ Abruf-Info senden",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2100, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_BOT_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      },
+      "notes": "Informiert den Nutzer, dass der Sub-Workflow abgerufen wird"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// EINZELNEN SUB-WORKFLOW ABRUFEN\n// Baut die Webhook-URL dynamisch zusammen\n// ========================================\n\nconst input = $('🧠 Intent erkennen').first().json;\nconst target = input.targetWorkflow;\n\n// Webhook URL Mapping aus Umgebungsvariablen\nconst webhookMap = {\n  seo_dashboard: $env.WEBHOOK_SEO_DASHBOARD,\n  funnel_report: $env.WEBHOOK_FUNNEL_REPORT,\n  clarity_report: $env.WEBHOOK_CLARITY_REPORT,\n  keyword_tracker: $env.WEBHOOK_KEYWORD_TRACKER,\n  linkedin_monitor: $env.WEBHOOK_LINKEDIN_MONITOR\n};\n\n// Google Sheet ID Mapping für direkte Sheet-Quellen\nconst sheetMap = {\n  ai_visibility: $env.SHEET_AI_VISIBILITY,\n  comment_intelligence: $env.SHEET_COMMENT_INTELLIGENCE\n};\n\n// Datumsbereich berechnen (aktuelle Woche)\nconst now = new Date();\nconst dayOfWeek = now.getDay();\nconst daysToLastMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;\nconst weekStart = new Date(now);\nweekStart.setDate(now.getDate() - daysToLastMonday - 7);\nconst weekEnd = new Date(weekStart);\nweekEnd.setDate(weekStart.getDate() + 6);\nconst formatDate = (d) => d.toISOString().split('T')[0];\n\nconst isWebhookSource = !!webhookMap[target];\nconst isSheetSource = !!sheetMap[target];\n\nreturn {\n  json: {\n    ...input,\n    webhookUrl: webhookMap[target] || null,\n    sheetId: sheetMap[target] || null,\n    isWebhookSource: isWebhookSource,\n    isSheetSource: isSheetSource,\n    dateRange: `${formatDate(weekStart)} bis ${formatDate(weekEnd)}`\n  }\n};"
+      },
+      "id": "build-single-request",
+      "name": "🔧 Sub-Workflow Request bauen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2320, 200],
+      "notes": "Baut die Webhook-URL oder Sheet-ID für den einzelnen Sub-Workflow zusammen"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "webhook-check",
+              "leftValue": "={{ $json.isWebhookSource }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-source-type",
+      "name": "🔀 Webhook oder Sheet?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2540, 200],
+      "notes": "Unterscheidet zwischen Webhook-basierten und Sheet-basierten Datenquellen"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.webhookUrl }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"trigger\": \"telegram_agent\",\n  \"dateRange\": \"{{ $json.dateRange }}\",\n  \"requestedBy\": \"{{ $json.firstName }}\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "fetch-single-webhook",
+      "name": "🌐 Sub-Workflow via Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2760, 100],
+      "continueOnFail": true,
+      "notes": "Ruft den einzelnen Sub-Workflow via Webhook ab (Timeout 120s)"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Results"
+        },
+        "options": {
+          "returnAll": false,
+          "limit": 1
+        }
+      },
+      "id": "fetch-single-sheet",
+      "name": "📊 Daten aus Sheet laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2760, 300],
+      "continueOnFail": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Liest die aktuellsten Daten direkt aus dem Google Sheet"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// EINZELERGEBNIS AUFBEREITEN + AI ANALYSE\n// Formatiert das Ergebnis und lässt AI eine Zusammenfassung erstellen\n// ========================================\n\nconst intentData = $('🧠 Intent erkennen').first().json;\nlet rawData;\n\ntry {\n  rawData = $input.first().json;\n} catch (e) {\n  rawData = { error: 'Daten konnten nicht abgerufen werden: ' + e.message };\n}\n\nconst hasError = !rawData || rawData.error || rawData.errorMessage;\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    firstName: intentData.firstName,\n    targetLabel: intentData.targetLabel,\n    targetWorkflow: intentData.targetWorkflow,\n    userMessage: intentData.userMessage,\n    rawData: rawData,\n    hasError: hasError,\n    errorMessage: hasError ? (rawData?.error || rawData?.errorMessage || 'Unbekannter Fehler') : null\n  }\n};"
+      },
+      "id": "prepare-single-result",
+      "name": "📦 Einzelergebnis aufbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2980, 200],
+      "notes": "Vereinheitlicht die Ergebnisse aus Webhook und Sheet-Quellen"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4.1\",\n  \"temperature\": 0.5,\n  \"max_tokens\": 2000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Du bist ein erfahrener Digital Marketing Abteilungsleiter, der über Telegram mit der Geschäftsführung kommuniziert.\\n\\nRegeln:\\n- Antworte auf Deutsch\\n- Formatiere für Telegram (Markdown)\\n- Sei prägnant aber informativ\\n- Nutze Emojis sparsam aber gezielt\\n- Nenne konkrete Zahlen und Veränderungen\\n- Gib bei Problemen sofort Handlungsempfehlungen\\n- Halte dich kurz (max 300 Wörter)\\n- Strukturiere mit Bullet Points\\n- Beende mit 1-2 konkreten Empfehlungen\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Der Nutzer {{ $json.firstName }} hat per Telegram nach '{{ $json.targetLabel }}' gefragt.\\n\\nOriginal-Nachricht: \\\"{{ $json.userMessage }}\\\"\\n\\nHier sind die aktuellen Daten:\\n{{ $json.hasError ? 'FEHLER: ' + $json.errorMessage : JSON.stringify($json.rawData, null, 2) }}\\n\\nBitte erstelle eine kurze, Telegram-formatierte Zusammenfassung dieser Daten.\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "ai-single-analysis",
+      "name": "🤖 AI Einzelanalyse",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3200, 200],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "GPT-4.1 erstellt eine Telegram-formatierte Zusammenfassung des Sub-Workflow Ergebnisses"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// AI RESPONSE FÜR TELEGRAM AUFBEREITEN\n// Extrahiert den Text aus der OpenAI Response\n// ========================================\n\nconst response = $input.first().json;\nconst intentData = $('🧠 Intent erkennen').first().json;\n\nlet responseText;\ntry {\n  responseText = response.choices[0].message.content;\n} catch (e) {\n  responseText = '❌ Die AI-Analyse konnte nicht durchgeführt werden. Bitte versuche es erneut.';\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    responseText: responseText\n  }\n};"
+      },
+      "id": "format-single-response",
+      "name": "📝 Antwort formatieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3420, 200],
+      "notes": "Formatiert die AI-Antwort für Telegram"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.responseText }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-single-result",
+      "name": "📤 Ergebnis senden",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3640, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_BOT_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      },
+      "notes": "Sendet das analysierte Einzelergebnis per Telegram"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "=⏳ Ich starte den kompletten Report-Abruf. Das kann 2-3 Minuten dauern...\n\n🔄 Rufe 7 Datenquellen ab...",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-fetching-all",
+      "name": "⏳ Komplett-Abruf Info",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2100, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_BOT_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      },
+      "notes": "Informiert dass der komplette Report-Abruf gestartet wird"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WEBHOOK_DEPT_LEADER_REPORT || '' }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"trigger\": \"telegram\",\n  \"requestedBy\": \"{{ $('🧠 Intent erkennen').first().json.firstName }}\",\n  \"chatId\": \"{{ $('🧠 Intent erkennen').first().json.chatId }}\"\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "trigger-full-report",
+      "name": "🔄 Komplett-Report triggern",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2320, 400],
+      "continueOnFail": true,
+      "notes": "Triggert den Haupt-Workflow 'Agent - Wöchentlicher Abteilungsleiter Report' via Webhook"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('🧠 Intent erkennen').first().json.chatId }}",
+        "text": "=✅ Der komplette Report wurde erstellt und per Email versendet!\n\nMöchtest du eine Zusammenfassung hier im Chat sehen? Schreibe z.B. \"Zeig mir den Status\".",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-full-report-done",
+      "name": "✅ Komplett-Report fertig",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2540, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_BOT_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      },
+      "notes": "Bestätigt den erfolgreichen Komplett-Report"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.SHEET_WEEKLY_SNAPSHOTS }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Weekly Snapshots"
+        },
+        "options": {
+          "returnAll": false,
+          "limit": 1
+        }
+      },
+      "id": "load-latest-snapshot",
+      "name": "📂 Letzten Snapshot laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2100, 600],
+      "continueOnFail": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Lädt den letzten gespeicherten wöchentlichen Snapshot"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// LETZTEN REPORT / ACTION ITEMS AUFBEREITEN\n// ========================================\n\nconst intentData = $('🧠 Intent erkennen').first().json;\nconst snapshot = $input.first().json;\n\nlet aiAnalysis = null;\nlet dateLabel = 'unbekannt';\nlet overallStatus = 'unknown';\n\ntry {\n  if (snapshot.AIAnalysis) {\n    aiAnalysis = JSON.parse(snapshot.AIAnalysis);\n  }\n  dateLabel = snapshot.DateLabel || 'unbekannt';\n  overallStatus = snapshot.OverallStatus || 'unknown';\n} catch (e) {\n  // Fallback\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    firstName: intentData.firstName,\n    intent: intentData.intent,\n    userMessage: intentData.userMessage,\n    dateLabel: dateLabel,\n    overallStatus: overallStatus,\n    aiAnalysis: aiAnalysis,\n    hasData: !!aiAnalysis\n  }\n};"
+      },
+      "id": "prepare-latest-report",
+      "name": "📦 Letzten Report aufbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2320, 600],
+      "notes": "Bereitet den letzten Snapshot für die Telegram-Ausgabe auf"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4.1\",\n  \"temperature\": 0.4,\n  \"max_tokens\": 2000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Du bist ein erfahrener Digital Marketing Abteilungsleiter, der über Telegram mit der Geschäftsführung kommuniziert.\\n\\nRegeln:\\n- Antworte auf Deutsch\\n- Formatiere für Telegram (Markdown)\\n- Sei prägnant aber informativ\\n- Nutze Emojis sparsam aber gezielt\\n- Nenne konkrete Zahlen\\n- Halte dich kurz (max 400 Wörter)\\n- Strukturiere mit Bullet Points\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.intent === 'show_actions' ? 'Zeige die aktuellen Handlungsempfehlungen und Prioritäten.' : 'Zeige eine Zusammenfassung des letzten Reports.' }}\\n\\nNutzer {{ $json.firstName }} fragt: \\\"{{ $json.userMessage }}\\\"\\n\\nLetzter Report: {{ $json.dateLabel }}\\nGesamtstatus: {{ $json.overallStatus }}\\n\\n{{ $json.hasData ? 'AI-Analyse:\\n' + JSON.stringify($json.aiAnalysis, null, 2) : 'Kein vorheriger Report gefunden. Empfehle dem Nutzer, zuerst einen kompletten Report zu erstellen.' }}\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "ai-latest-analysis",
+      "name": "🤖 AI Report-Zusammenfassung",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2540, 600],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "GPT-4.1 erstellt eine Telegram-formatierte Zusammenfassung des letzten Reports"
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI Response für Telegram extrahieren\nconst response = $input.first().json;\nconst intentData = $('🧠 Intent erkennen').first().json;\n\nlet text;\ntry {\n  text = response.choices[0].message.content;\n} catch (e) {\n  text = '❌ Konnte den Report nicht zusammenfassen. Versuche es erneut.';\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    responseText: text\n  }\n};"
+      },
+      "id": "format-latest-response",
+      "name": "📝 Report-Antwort formatieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2760, 600],
+      "notes": "Formatiert die Report-Zusammenfassung für Telegram"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.responseText }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-latest-result",
+      "name": "📤 Report-Zusammenfassung senden",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2980, 600],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_BOT_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      },
+      "notes": "Sendet die Report-Zusammenfassung per Telegram"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4.1\",\n  \"temperature\": 0.6,\n  \"max_tokens\": 1500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Du bist ein erfahrener Digital Marketing Abteilungsleiter, der über Telegram mit der Geschäftsführung kommuniziert.\\n\\nDu hast Zugriff auf folgende Datenquellen:\\n- SEO/GEO Dashboard\\n- Funnel & Conversion\\n- Microsoft Clarity (UX)\\n- Keyword Rankings\\n- LinkedIn Monitor\\n- AI Visibility\\n- Comment Intelligence\\n\\nRegeln:\\n- Antworte auf Deutsch\\n- Formatiere für Telegram (Markdown)\\n- Sei ein hilfreicher, kompetenter Gesprächspartner\\n- Wenn du keine konkreten Daten hast, sage es ehrlich\\n- Empfehle ggf. einen spezifischen Report-Abruf\\n- Halte dich kurz (max 200 Wörter)\\n- Sei professionell aber zugänglich\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.firstName }} schreibt: \\\"{{ $json.userMessage }}\\\"\\n\\nBitte antworte als Abteilungsleiter. Wenn die Frage sich auf konkrete Daten bezieht, empfehle dem Nutzer den passenden Report abzurufen (z.B. 'Sag einfach SEO Report für die aktuellen SEO-Daten').\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ai-conversation",
+      "name": "🤖 AI Konversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 800],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "GPT-4.1 führt eine freie Konversation als Abteilungsleiter"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Konversations-Response für Telegram\nconst response = $input.first().json;\nconst intentData = $('🧠 Intent erkennen').first().json;\n\nlet text;\ntry {\n  text = response.choices[0].message.content;\n} catch (e) {\n  text = '🤔 Ich konnte deine Nachricht leider nicht verarbeiten. Versuche es nochmal oder schreibe /help.';\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    responseText: text\n  }\n};"
+      },
+      "id": "format-conversation-response",
+      "name": "📝 Konversation formatieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2320, 800],
+      "notes": "Formatiert die Konversations-Antwort für Telegram"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.responseText }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-conversation-result",
+      "name": "📤 Konversation senden",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2540, 800],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_BOT_CREDENTIAL_ID",
+          "name": "Telegram Bot API"
+        }
+      },
+      "notes": "Sendet die Konversations-Antwort per Telegram"
+    },
+    {
+      "parameters": {},
+      "id": "end-node",
+      "name": "✅ Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [3860, 300],
+      "notes": "Workflow Complete"
+    }
+  ],
+  "connections": {
+    "📱 Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "🔒 Autorisierung prüfen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔒 Autorisierung prüfen": {
+      "main": [
+        [
+          {
+            "node": "🔀 Voice oder Text?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⛔ Nicht autorisiert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 Voice oder Text?": {
+      "main": [
+        [
+          {
+            "node": "📥 Voice File Info holen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💬 Text extrahieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 Voice File Info holen": {
+      "main": [
+        [
+          {
+            "node": "⬇️ Voice File herunterladen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⬇️ Voice File herunterladen": {
+      "main": [
+        [
+          {
+            "node": "🎤 Whisper Speech-to-Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎤 Whisper Speech-to-Text": {
+      "main": [
+        [
+          {
+            "node": "📝 Voice-Text extrahieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Voice-Text extrahieren": {
+      "main": [
+        [
+          {
+            "node": "🔗 Eingabe zusammenführen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💬 Text extrahieren": {
+      "main": [
+        [
+          {
+            "node": "🔗 Eingabe zusammenführen",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔗 Eingabe zusammenführen": {
+      "main": [
+        [
+          {
+            "node": "🧠 Intent erkennen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Intent erkennen": {
+      "main": [
+        [
+          {
+            "node": "🔀 Intent Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 Intent Router": {
+      "main": [
+        [
+          {
+            "node": "❓ Hilfe senden",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏳ Abruf-Info senden",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏳ Komplett-Abruf Info",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📂 Letzten Snapshot laden",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "🤖 AI Konversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❓ Hilfe senden": {
+      "main": [
+        [
+          {
+            "node": "✅ Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏳ Abruf-Info senden": {
+      "main": [
+        [
+          {
+            "node": "🔧 Sub-Workflow Request bauen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔧 Sub-Workflow Request bauen": {
+      "main": [
+        [
+          {
+            "node": "🔀 Webhook oder Sheet?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 Webhook oder Sheet?": {
+      "main": [
+        [
+          {
+            "node": "🌐 Sub-Workflow via Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📊 Daten aus Sheet laden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 Sub-Workflow via Webhook": {
+      "main": [
+        [
+          {
+            "node": "📦 Einzelergebnis aufbereiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Daten aus Sheet laden": {
+      "main": [
+        [
+          {
+            "node": "📦 Einzelergebnis aufbereiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 Einzelergebnis aufbereiten": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI Einzelanalyse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI Einzelanalyse": {
+      "main": [
+        [
+          {
+            "node": "📝 Antwort formatieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Antwort formatieren": {
+      "main": [
+        [
+          {
+            "node": "📤 Ergebnis senden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 Ergebnis senden": {
+      "main": [
+        [
+          {
+            "node": "✅ Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏳ Komplett-Abruf Info": {
+      "main": [
+        [
+          {
+            "node": "🔄 Komplett-Report triggern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 Komplett-Report triggern": {
+      "main": [
+        [
+          {
+            "node": "✅ Komplett-Report fertig",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Komplett-Report fertig": {
+      "main": [
+        [
+          {
+            "node": "✅ Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📂 Letzten Snapshot laden": {
+      "main": [
+        [
+          {
+            "node": "📦 Letzten Report aufbereiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 Letzten Report aufbereiten": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI Report-Zusammenfassung",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI Report-Zusammenfassung": {
+      "main": [
+        [
+          {
+            "node": "📝 Report-Antwort formatieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Report-Antwort formatieren": {
+      "main": [
+        [
+          {
+            "node": "📤 Report-Zusammenfassung senden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 Report-Zusammenfassung senden": {
+      "main": [
+        [
+          {
+            "node": "✅ Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI Konversation": {
+      "main": [
+        [
+          {
+            "node": "📝 Konversation formatieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Konversation formatieren": {
+      "main": [
+        [
+          {
+            "node": "📤 Konversation senden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📤 Konversation senden": {
+      "main": [
+        [
+          {
+            "node": "✅ Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Berlin",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "Agent", "id": "agent-tag" },
+    { "name": "Telegram", "id": "telegram-tag" },
+    { "name": "Interactive", "id": "interactive-tag" },
+    { "name": "Voice", "id": "voice-tag" },
+    { "name": "AI", "id": "ai-tag" }
+  ],
+  "triggerCount": 1,
+  "versionId": "1",
+  "meta": {
+    "instanceId": "",
+    "templateCredsSetupCompleted": false
+  }
+}
