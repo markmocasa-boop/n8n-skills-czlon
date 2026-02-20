@@ -1,0 +1,756 @@
+{
+  "name": "Agent - Wöchentlicher Abteilungsleiter Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [1],
+              "triggerAtHour": 10,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "⏰ Montag 10:00 Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "notes": "Triggers every Monday at 10:00 CET"
+    },
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "▶️ Manueller Test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 200],
+      "notes": "For manual testing of the workflow"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "",
+        "authentication": "none",
+        "options": {
+          "response": {
+            "response": {
+              "responseCode": 200
+            }
+          }
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "🌐 Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 400],
+      "webhookId": "agent-dept-leader-report",
+      "notes": "Optional: Trigger report externally via POST /webhook/agent-dept-leader-report"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            { "name": "reportRecipient", "value": "={{ $env.REPORT_RECIPIENT || 'mark@mo-casa.com' }}" },
+            { "name": "companyName", "value": "MO CASA" },
+            { "name": "reportLanguage", "value": "de" },
+            { "name": "webhooks.seo_dashboard", "value": "={{ $env.WEBHOOK_SEO_DASHBOARD }}" },
+            { "name": "webhooks.funnel_report", "value": "={{ $env.WEBHOOK_FUNNEL_REPORT }}" },
+            { "name": "webhooks.clarity_report", "value": "={{ $env.WEBHOOK_CLARITY_REPORT }}" },
+            { "name": "webhooks.keyword_tracker", "value": "={{ $env.WEBHOOK_KEYWORD_TRACKER }}" },
+            { "name": "webhooks.linkedin_monitor", "value": "={{ $env.WEBHOOK_LINKEDIN_MONITOR }}" },
+            { "name": "sheets.ai_visibility", "value": "={{ $env.SHEET_AI_VISIBILITY }}" },
+            { "name": "sheets.comment_intelligence", "value": "={{ $env.SHEET_COMMENT_INTELLIGENCE }}" },
+            { "name": "sheets.weekly_snapshots", "value": "={{ $env.SHEET_WEEKLY_SNAPSHOTS }}" }
+          ],
+          "number": [
+            { "name": "webhookTimeout", "value": 120 }
+          ],
+          "boolean": [
+            { "name": "enabledSources.seo_dashboard", "value": true },
+            { "name": "enabledSources.funnel_report", "value": true },
+            { "name": "enabledSources.clarity_report", "value": true },
+            { "name": "enabledSources.keyword_tracker", "value": true },
+            { "name": "enabledSources.linkedin_monitor", "value": true },
+            { "name": "enabledSources.ai_visibility", "value": true },
+            { "name": "enabledSources.comment_intelligence", "value": true }
+          ]
+        },
+        "options": {}
+      },
+      "id": "config-node",
+      "name": "⚙️ Konfiguration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [280, 200],
+      "notes": "Central configuration: recipients, webhook URLs, sheet IDs, enabled sources"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// DATUMSBEREICH BERECHNEN\n// Berechnet KW, letzte vollständige Woche (Mo-So)\n// ========================================\n\nconst now = new Date();\nconst dayOfWeek = now.getDay();\nconst daysToLastMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;\n\nconst lastWeekStart = new Date(now);\nlastWeekStart.setDate(now.getDate() - daysToLastMonday - 7);\nlastWeekStart.setHours(0, 0, 0, 0);\n\nconst lastWeekEnd = new Date(lastWeekStart);\nlastWeekEnd.setDate(lastWeekStart.getDate() + 6);\nlastWeekEnd.setHours(23, 59, 59, 999);\n\nconst kw = getISOWeek(lastWeekStart);\n\nfunction getISOWeek(date) {\n  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));\n  const dayNum = d.getUTCDay() || 7;\n  d.setUTCDate(d.getUTCDate() + 4 - dayNum);\n  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));\n  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);\n}\n\nconst formatDate = (d) => d.toISOString().split('T')[0];\nconst formatDateDE = (d) => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;\n\nreturn {\n  json: {\n    kw: kw,\n    year: lastWeekStart.getFullYear(),\n    weekStart: formatDate(lastWeekStart),\n    weekEnd: formatDate(lastWeekEnd),\n    weekStartDE: formatDateDE(lastWeekStart),\n    weekEndDE: formatDateDE(lastWeekEnd),\n    reportDate: now.toISOString(),\n    reportDateDE: formatDateDE(now),\n    dateLabel: `KW ${kw} / ${lastWeekStart.getFullYear()}`,\n    prevKw: kw > 1 ? kw - 1 : 52,\n    prevYear: kw > 1 ? lastWeekStart.getFullYear() : lastWeekStart.getFullYear() - 1\n  }\n};"
+      },
+      "id": "date-calc",
+      "name": "📅 Datumsbereich berechnen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [540, 200],
+      "notes": "Calculates ISO week number, date range for last complete Mon-Sun week"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('⚙️ Konfiguration').item.json['webhooks.seo_dashboard'] }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"trigger\": \"agent\",\n  \"dateRange\": \"{{ $('📅 Datumsbereich berechnen').item.json.weekStart }} bis {{ $('📅 Datumsbereich berechnen').item.json.weekEnd }}\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "fetch-seo-dashboard",
+      "name": "🔍 SEO Dashboard abrufen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [820, -300],
+      "continueOnFail": true,
+      "notes": "POST to SEO/GEO Dashboard sub-workflow webhook. Timeout 120s."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('⚙️ Konfiguration').item.json['webhooks.funnel_report'] }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"trigger\": \"agent\",\n  \"dateRange\": \"{{ $('📅 Datumsbereich berechnen').item.json.weekStart }} bis {{ $('📅 Datumsbereich berechnen').item.json.weekEnd }}\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "fetch-funnel-report",
+      "name": "📊 Funnel Report abrufen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [820, -150],
+      "continueOnFail": true,
+      "notes": "POST to Funnel & Conversion sub-workflow webhook. Timeout 120s."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('⚙️ Konfiguration').item.json['webhooks.clarity_report'] }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"trigger\": \"agent\",\n  \"dateRange\": \"{{ $('📅 Datumsbereich berechnen').item.json.weekStart }} bis {{ $('📅 Datumsbereich berechnen').item.json.weekEnd }}\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "fetch-clarity-report",
+      "name": "🖱️ Clarity Report abrufen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [820, 0],
+      "continueOnFail": true,
+      "notes": "POST to Microsoft Clarity sub-workflow webhook. Timeout 120s."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('⚙️ Konfiguration').item.json['webhooks.keyword_tracker'] }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"trigger\": \"agent\",\n  \"dateRange\": \"{{ $('📅 Datumsbereich berechnen').item.json.weekStart }} bis {{ $('📅 Datumsbereich berechnen').item.json.weekEnd }}\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "fetch-keyword-tracker",
+      "name": "🔑 Keyword Tracker abrufen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [820, 150],
+      "continueOnFail": true,
+      "notes": "POST to Keyword Ranking Tracker sub-workflow webhook. Timeout 120s."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('⚙️ Konfiguration').item.json['webhooks.linkedin_monitor'] }}",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"trigger\": \"agent\",\n  \"dateRange\": \"{{ $('📅 Datumsbereich berechnen').item.json.weekStart }} bis {{ $('📅 Datumsbereich berechnen').item.json.weekEnd }}\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "fetch-linkedin-monitor",
+      "name": "💼 LinkedIn Monitor abrufen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [820, 300],
+      "continueOnFail": true,
+      "notes": "POST to LinkedIn Message Monitoring sub-workflow webhook. Timeout 120s."
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('⚙️ Konfiguration').item.json['sheets.ai_visibility'] }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Results"
+        },
+        "options": {
+          "range": "",
+          "returnAll": false,
+          "limit": 1
+        }
+      },
+      "id": "fetch-ai-visibility",
+      "name": "📱 AI Visibility laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [820, 450],
+      "continueOnFail": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Reads latest AI Visibility Checker results from Google Sheet"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('⚙️ Konfiguration').item.json['sheets.comment_intelligence'] }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Results"
+        },
+        "options": {
+          "range": "",
+          "returnAll": false,
+          "limit": 1
+        }
+      },
+      "id": "fetch-comment-intelligence",
+      "name": "💬 Comment Intelligence laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [820, 600],
+      "continueOnFail": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Reads latest Cross-Platform Comment Intelligence results from Google Sheet"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// DATEN NORMALISIEREN\n// Sammelt alle 7 Quellen und erstellt ein einheitliches Datenobjekt\n// ========================================\n\nconst config = $('⚙️ Konfiguration').first().json;\nconst dateInfo = $('📅 Datumsbereich berechnen').first().json;\n\n// Hilfsfunktion: Sicheres Parsen (wenn ein Sub-Workflow fehlschlägt)\nfunction safeGet(nodeName) {\n  try {\n    const data = $(nodeName).first().json;\n    if (data && !data.error && !data.errorMessage) {\n      return data;\n    }\n    return null;\n  } catch (e) {\n    return null;\n  }\n}\n\nconst consolidated = {\n  meta: {\n    reportDate: dateInfo.reportDate,\n    reportDateDE: dateInfo.reportDateDE,\n    dateLabel: dateInfo.dateLabel,\n    kw: dateInfo.kw,\n    year: dateInfo.year,\n    weekStart: dateInfo.weekStart,\n    weekEnd: dateInfo.weekEnd,\n    weekStartDE: dateInfo.weekStartDE,\n    weekEndDE: dateInfo.weekEndDE,\n    companyName: config.companyName\n  },\n  seo_dashboard: safeGet('🔍 SEO Dashboard abrufen'),\n  funnel_report: safeGet('📊 Funnel Report abrufen'),\n  clarity_report: safeGet('🖱️ Clarity Report abrufen'),\n  keyword_tracker: safeGet('🔑 Keyword Tracker abrufen'),\n  linkedin_monitor: safeGet('💼 LinkedIn Monitor abrufen'),\n  ai_visibility: safeGet('📱 AI Visibility laden'),\n  comment_intelligence: safeGet('💬 Comment Intelligence laden'),\n  availableSources: [],\n  unavailableSources: []\n};\n\n// Verfügbarkeit tracken\nconst sources = [\n  'seo_dashboard', 'funnel_report', 'clarity_report',\n  'keyword_tracker', 'linkedin_monitor', 'ai_visibility',\n  'comment_intelligence'\n];\n\nconst sourceLabels = {\n  seo_dashboard: 'SEO/GEO Dashboard',\n  funnel_report: 'Funnel & Conversion',\n  clarity_report: 'Microsoft Clarity',\n  keyword_tracker: 'Keyword Rankings',\n  linkedin_monitor: 'LinkedIn Monitor',\n  ai_visibility: 'AI Visibility',\n  comment_intelligence: 'Comment Intelligence'\n};\n\nsources.forEach(s => {\n  if (consolidated[s]) {\n    consolidated.availableSources.push({ key: s, label: sourceLabels[s] });\n  } else {\n    consolidated.unavailableSources.push({ key: s, label: sourceLabels[s] });\n  }\n});\n\nconsolidated.sourceSummary = {\n  available: consolidated.availableSources.length,\n  total: sources.length,\n  ratio: `${consolidated.availableSources.length}/${sources.length}`\n};\n\nreturn { json: consolidated };"
+      },
+      "id": "normalize-data",
+      "name": "📦 Daten normalisieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 150],
+      "notes": "Collects all 7 source responses, handles failures gracefully, creates unified data object"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('⚙️ Konfiguration').item.json['sheets.weekly_snapshots'] }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Weekly Snapshots"
+        },
+        "filters": {
+          "values": [
+            {
+              "lookupColumn": "KW",
+              "lookupValue": "={{ $('📅 Datumsbereich berechnen').item.json.prevKw }}"
+            },
+            {
+              "lookupColumn": "Jahr",
+              "lookupValue": "={{ $('📅 Datumsbereich berechnen').item.json.prevYear }}"
+            }
+          ]
+        },
+        "options": {
+          "returnAll": false,
+          "limit": 1
+        }
+      },
+      "id": "load-prev-snapshot",
+      "name": "📂 Vorwochen-Snapshot laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1380, 150],
+      "continueOnFail": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Loads previous week's snapshot from Google Sheets for week-over-week comparison"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// VERÄNDERUNGEN BERECHNEN\n// Vergleicht aktuelle Daten mit Vorwoche\n// ========================================\n\nconst current = $('📦 Daten normalisieren').first().json;\n\nlet previous = null;\ntry {\n  const prevRaw = $('📂 Vorwochen-Snapshot laden').first().json;\n  if (prevRaw && prevRaw.ConsolidatedData) {\n    previous = JSON.parse(prevRaw.ConsolidatedData);\n  } else if (prevRaw && !prevRaw.error) {\n    previous = prevRaw;\n  }\n} catch (e) {\n  previous = null;\n}\n\nconst changes = {\n  seo: {\n    clicksDelta: null, clicksDeltaPct: null,\n    impressionsDelta: null, impressionsDeltaPct: null,\n    ctrDelta: null,\n    positionDelta: null\n  },\n  funnel: {\n    sessionsDelta: null, sessionsDeltaPct: null,\n    conversionsDelta: null, conversionsDeltaPct: null,\n    conversionRateDelta: null\n  },\n  clarity: {\n    sessionsDelta: null, sessionsDeltaPct: null,\n    deadClickDelta: null,\n    rageClickDelta: null\n  },\n  keywords: {\n    avgPositionDelta: null,\n    improvedCount: 0,\n    declinedCount: 0\n  },\n  linkedin: {\n    unansweredDelta: null\n  },\n  ai_visibility: {\n    mentionsDelta: null\n  },\n  sentiment: {\n    positiveDelta: null,\n    negativeDelta: null\n  }\n};\n\nfunction pctChange(current, previous) {\n  if (!previous || previous === 0) return null;\n  return parseFloat(((current - previous) / previous * 100).toFixed(1));\n}\n\n// SEO Delta\nif (current.seo_dashboard?.gsc && previous?.seo_dashboard?.gsc) {\n  const c = current.seo_dashboard.gsc;\n  const p = previous.seo_dashboard.gsc;\n  changes.seo.clicksDelta = c.totalClicks - p.totalClicks;\n  changes.seo.clicksDeltaPct = pctChange(c.totalClicks, p.totalClicks);\n  changes.seo.impressionsDelta = c.totalImpressions - p.totalImpressions;\n  changes.seo.impressionsDeltaPct = pctChange(c.totalImpressions, p.totalImpressions);\n  changes.seo.ctrDelta = parseFloat((c.totalCtr - p.totalCtr).toFixed(2));\n  if (c.avgPosition && p.avgPosition) {\n    changes.seo.positionDelta = parseFloat((p.avgPosition - c.avgPosition).toFixed(1));\n  }\n}\n\n// Funnel Delta\nif (current.funnel_report?.ga4Funnel && previous?.funnel_report?.ga4Funnel) {\n  const c = current.funnel_report.ga4Funnel;\n  const p = previous.funnel_report.ga4Funnel;\n  changes.funnel.sessionsDelta = c.sessions - p.sessions;\n  changes.funnel.sessionsDeltaPct = pctChange(c.sessions, p.sessions);\n  changes.funnel.conversionsDelta = c.conversions - p.conversions;\n  changes.funnel.conversionsDeltaPct = pctChange(c.conversions, p.conversions);\n  changes.funnel.conversionRateDelta = parseFloat((c.conversionRate - p.conversionRate).toFixed(2));\n}\n\n// Clarity Delta\nif (current.clarity_report && previous?.clarity_report) {\n  const c = current.clarity_report;\n  const p = previous.clarity_report;\n  if (c.totalSessions != null && p.totalSessions != null) {\n    changes.clarity.sessionsDelta = c.totalSessions - p.totalSessions;\n    changes.clarity.sessionsDeltaPct = pctChange(c.totalSessions, p.totalSessions);\n  }\n  if (c.deadClickRate != null && p.deadClickRate != null) {\n    changes.clarity.deadClickDelta = parseFloat((c.deadClickRate - p.deadClickRate).toFixed(1));\n  }\n  if (c.rageClickRate != null && p.rageClickRate != null) {\n    changes.clarity.rageClickDelta = parseFloat((c.rageClickRate - p.rageClickRate).toFixed(1));\n  }\n}\n\n// Keyword Delta\nif (current.keyword_tracker?.summary && previous?.keyword_tracker?.summary) {\n  const c = current.keyword_tracker.summary;\n  const p = previous.keyword_tracker.summary;\n  changes.keywords.avgPositionDelta = parseFloat((p.avgPosition - c.avgPosition).toFixed(1));\n  changes.keywords.improvedCount = c.improved || 0;\n  changes.keywords.declinedCount = c.declined || 0;\n}\n\n// LinkedIn Delta\nif (current.linkedin_monitor && previous?.linkedin_monitor) {\n  const c = current.linkedin_monitor;\n  const p = previous.linkedin_monitor;\n  if (c.totalUnanswered != null && p.totalUnanswered != null) {\n    changes.linkedin.unansweredDelta = c.totalUnanswered - p.totalUnanswered;\n  }\n}\n\n// AI Visibility Delta\nif (current.ai_visibility && previous?.ai_visibility) {\n  const c = current.ai_visibility;\n  const p = previous.ai_visibility;\n  if (c.totalMentions != null && p.totalMentions != null) {\n    changes.ai_visibility.mentionsDelta = c.totalMentions - p.totalMentions;\n  }\n}\n\n// Sentiment Delta\nif (current.comment_intelligence?.overallSentiment && previous?.comment_intelligence?.overallSentiment) {\n  const c = current.comment_intelligence.overallSentiment;\n  const p = previous.comment_intelligence.overallSentiment;\n  changes.sentiment.positiveDelta = parseFloat((c.positive - p.positive).toFixed(1));\n  changes.sentiment.negativeDelta = parseFloat((c.negative - p.negative).toFixed(1));\n}\n\nreturn {\n  json: {\n    current: current,\n    previous: previous || null,\n    changes: changes,\n    hasPreviousData: !!previous\n  }\n};"
+      },
+      "id": "calc-changes",
+      "name": "📊 Veränderungen berechnen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 150],
+      "notes": "Computes week-over-week deltas for all channels with null-safe handling"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4.1\",\n  \"temperature\": 0.4,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Du bist ein erfahrener Digital Marketing Abteilungsleiter, der wöchentlich einen konsolidierten Performance-Report für die Geschäftsführung erstellt.\\n\\nDeine Aufgabe:\\n1. Analysiere die Daten aus allen verfügbaren Kanälen (SEO, Ads, UX, Social, LinkedIn, AI Visibility)\\n2. Identifiziere die 3-5 wichtigsten Erkenntnisse der Woche\\n3. Erkenne kanalübergreifende Zusammenhänge (z.B. \\\"Keyword-Rankings steigen + Clarity zeigt mehr Dead Clicks auf der Zielseite = Traffic kommt an, aber Seite konvertiert nicht\\\")\\n4. Vergleiche mit der Vorwoche und hebe signifikante Veränderungen hervor\\n5. Gib konkrete, priorisierte Handlungsempfehlungen (max. 5)\\n6. Bewerte den Gesamtzustand mit einer Ampel (green = alles gut, yellow = Aufmerksamkeit nötig, red = dringend handeln)\\n\\nRegeln:\\n- Schreibe auf Deutsch\\n- Sei konkret und datenbasiert, keine Floskeln\\n- Nenne immer die konkreten Zahlen und Veränderungen\\n- Wenn eine Datenquelle fehlt, erwähne es kurz und arbeite mit dem was da ist\\n- Priorisiere die Handlungsempfehlungen nach Impact\\n- Formatiere deine Antwort als strukturiertes JSON\\n\\nAntworte im folgenden JSON-Format:\\n{\\n  \\\"overallStatus\\\": \\\"green|yellow|red\\\",\\n  \\\"overallStatusReason\\\": \\\"Kurze Begründung für den Ampelstatus\\\",\\n  \\\"executiveSummary\\\": \\\"2-3 Sätze Gesamtbewertung der Woche\\\",\\n  \\\"topInsights\\\": [\\n    {\\n      \\\"title\\\": \\\"Kurzer Titel\\\",\\n      \\\"description\\\": \\\"Detaillierte Erkenntnis mit Zahlen\\\",\\n      \\\"impact\\\": \\\"high|medium|low\\\",\\n      \\\"channels\\\": [\\\"seo\\\", \\\"clarity\\\"],\\n      \\\"trend\\\": \\\"up|down|stable\\\"\\n    }\\n  ],\\n  \\\"channelReports\\\": {\\n    \\\"seo\\\": {\\n      \\\"status\\\": \\\"green|yellow|red\\\",\\n      \\\"summary\\\": \\\"1-2 Sätze zum SEO-Stand\\\",\\n      \\\"keyMetrics\\\": {},\\n      \\\"highlights\\\": [\\\"Punkt 1\\\", \\\"Punkt 2\\\"]\\n    },\\n    \\\"funnel\\\": {},\\n    \\\"ux\\\": {},\\n    \\\"keywords\\\": {},\\n    \\\"linkedin\\\": {},\\n    \\\"ai_visibility\\\": {},\\n    \\\"social_sentiment\\\": {}\\n  },\\n  \\\"crossChannelInsights\\\": [\\n    {\\n      \\\"insight\\\": \\\"Beschreibung des kanalübergreifenden Zusammenhangs\\\",\\n      \\\"channels\\\": [\\\"seo\\\", \\\"clarity\\\"],\\n      \\\"recommendation\\\": \\\"Was konkret zu tun ist\\\"\\n    }\\n  ],\\n  \\\"actionItems\\\": [\\n    {\\n      \\\"priority\\\": 1,\\n      \\\"action\\\": \\\"Konkrete Handlungsempfehlung\\\",\\n      \\\"reason\\\": \\\"Warum das jetzt wichtig ist\\\",\\n      \\\"channel\\\": \\\"seo|clarity|linkedin|...\\\",\\n      \\\"effort\\\": \\\"low|medium|high\\\",\\n      \\\"expectedImpact\\\": \\\"Erwarteter Effekt\\\"\\n    }\\n  ],\\n  \\\"weekOverWeekSummary\\\": \\\"Kurzer Vergleich zur Vorwoche in 2-3 Sätzen\\\"\\n}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Hier sind die konsolidierten Daten für {{ $json.current.meta.dateLabel }}:\\n\\nAKTUELLE WOCHE:\\n{{ JSON.stringify($json.current, null, 2) }}\\n\\nVORWOCHE (zum Vergleich):\\n{{ $json.previous ? JSON.stringify($json.previous, null, 2) : 'Keine Vorwochendaten verfügbar (erster Report)' }}\\n\\nBERECHNETE VERÄNDERUNGEN:\\n{{ JSON.stringify($json.changes, null, 2) }}\\n\\nVerfügbare Datenquellen: {{ $json.current.availableSources.map(s => s.label).join(', ') }}\\nNicht verfügbare Datenquellen: {{ $json.current.unavailableSources.length > 0 ? $json.current.unavailableSources.map(s => s.label).join(', ') : 'Alle verfügbar' }}\\n\\nErstelle den Abteilungsleiter-Report.\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "ai-analysis",
+      "name": "🤖 AI Abteilungsleiter Analyse",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1900, 150],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "GPT-4.1 analysis: cross-channel insights, traffic light status, action items"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// AI RESPONSE PARSEN\n// Extrahiert das JSON aus der OpenAI Response\n// ========================================\n\nconst response = $input.first().json;\nconst changesData = $('📊 Veränderungen berechnen').first().json;\n\nlet aiReport;\ntry {\n  if (response.choices && response.choices[0] && response.choices[0].message) {\n    const content = response.choices[0].message.content;\n    aiReport = JSON.parse(content);\n  } else {\n    throw new Error('Unexpected OpenAI response format');\n  }\n} catch (e) {\n  // Fallback wenn AI-Parsing fehlschlägt\n  aiReport = {\n    overallStatus: 'yellow',\n    overallStatusReason: 'AI-Analyse konnte nicht vollständig durchgeführt werden',\n    executiveSummary: 'Der automatische Report konnte diese Woche nicht mit AI-Analyse erstellt werden. Bitte prüfe die Rohdaten manuell.',\n    topInsights: [],\n    channelReports: {},\n    crossChannelInsights: [],\n    actionItems: [{\n      priority: 1,\n      action: 'AI-Analyse-Fehler prüfen und beheben',\n      reason: 'Die automatische Analyse konnte nicht durchgeführt werden: ' + e.message,\n      channel: 'system',\n      effort: 'low',\n      expectedImpact: 'Report-Qualität wiederherstellen'\n    }],\n    weekOverWeekSummary: 'Kein Vergleich möglich - AI-Analyse fehlgeschlagen.'\n  };\n}\n\nreturn {\n  json: {\n    aiReport: aiReport,\n    current: changesData.current,\n    previous: changesData.previous,\n    changes: changesData.changes,\n    hasPreviousData: changesData.hasPreviousData\n  }\n};"
+      },
+      "id": "parse-ai-response",
+      "name": "🔄 AI Response parsen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2160, 150],
+      "notes": "Parses OpenAI JSON response with fallback for errors"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('⚙️ Konfiguration').item.json['sheets.weekly_snapshots'] }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Weekly Snapshots"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "KW": "={{ $('📅 Datumsbereich berechnen').item.json.kw }}",
+            "Jahr": "={{ $('📅 Datumsbereich berechnen').item.json.year }}",
+            "Datum": "={{ $('📅 Datumsbereich berechnen').item.json.reportDate }}",
+            "DateLabel": "={{ $('📅 Datumsbereich berechnen').item.json.dateLabel }}",
+            "ConsolidatedData": "={{ JSON.stringify($json.current) }}",
+            "AIAnalysis": "={{ JSON.stringify($json.aiReport) }}",
+            "OverallStatus": "={{ $json.aiReport.overallStatus }}",
+            "AvailableSources": "={{ $json.current.availableSources.map(s => s.key).join(', ') }}"
+          },
+          "matchingColumns": ["KW", "Jahr"],
+          "schema": [
+            { "id": "KW", "displayName": "KW", "required": false, "defaultMatch": true, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Jahr", "displayName": "Jahr", "required": false, "defaultMatch": true, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "Datum", "displayName": "Datum", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "DateLabel", "displayName": "DateLabel", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "ConsolidatedData", "displayName": "ConsolidatedData", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "AIAnalysis", "displayName": "AIAnalysis", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "OverallStatus", "displayName": "OverallStatus", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "AvailableSources", "displayName": "AvailableSources", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-snapshot",
+      "name": "💾 Wöchentlichen Snapshot speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2420, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Saves consolidated data + AI analysis as weekly snapshot for historical comparison"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// HTML REPORT GENERIEREN\n// Professioneller, Email-kompatibler HTML Report\n// ========================================\n\nconst data = $input.first().json;\nconst ai = data.aiReport;\nconst current = data.current;\nconst changes = data.changes;\nconst meta = current.meta;\nconst hasPrev = data.hasPreviousData;\n\n// Hilfsfunktionen\nfunction statusEmoji(status) {\n  const map = { green: '🟢', yellow: '🟡', red: '🔴' };\n  return map[status] || '⚪';\n}\n\nfunction statusColor(status) {\n  const map = { green: '#2ecc71', yellow: '#f39c12', red: '#e74c3c' };\n  return map[status] || '#95a5a6';\n}\n\nfunction statusBgColor(status) {\n  const map = { green: '#d5f5e3', yellow: '#fef9e7', red: '#fadbd8' };\n  return map[status] || '#f2f3f4';\n}\n\nfunction deltaArrow(value, invertPositive) {\n  if (value == null) return '<span style=\"color:#95a5a6;\">–</span>';\n  const isPositive = invertPositive ? value < 0 : value > 0;\n  const color = isPositive ? '#2ecc71' : value === 0 ? '#95a5a6' : '#e74c3c';\n  const arrow = value > 0 ? '▲' : value < 0 ? '▼' : '–';\n  const prefix = value > 0 ? '+' : '';\n  return `<span style=\"color:${color};font-weight:bold;\">${arrow} ${prefix}${value}</span>`;\n}\n\nfunction deltaPctArrow(value, invertPositive) {\n  if (value == null) return '';\n  const isPositive = invertPositive ? value < 0 : value > 0;\n  const color = isPositive ? '#2ecc71' : value === 0 ? '#95a5a6' : '#e74c3c';\n  const prefix = value > 0 ? '+' : '';\n  return `<span style=\"color:${color};font-size:12px;\">(${prefix}${value}%)</span>`;\n}\n\nfunction impactBadge(impact) {\n  const colors = { high: '#e74c3c', medium: '#f39c12', low: '#2ecc71' };\n  const labels = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };\n  return `<span style=\"background:${colors[impact] || '#95a5a6'};color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;\">${labels[impact] || impact}</span>`;\n}\n\nfunction trendIcon(trend) {\n  const map = { up: '📈', down: '📉', stable: '➡️' };\n  return map[trend] || '';\n}\n\nfunction effortBadge(effort) {\n  const colors = { low: '#2ecc71', medium: '#f39c12', high: '#e74c3c' };\n  return `<span style=\"background:${colors[effort] || '#95a5a6'};color:#fff;padding:1px 6px;border-radius:8px;font-size:10px;\">${effort}</span>`;\n}\n\nfunction formatNum(n) {\n  if (n == null) return '–';\n  return Number(n).toLocaleString('de-DE');\n}\n\n// Channel Cards generieren\nfunction channelCard(name, icon, status, metrics, highlights) {\n  const s = status || 'yellow';\n  let metricsHtml = '';\n  if (metrics && typeof metrics === 'object') {\n    Object.entries(metrics).forEach(([key, val]) => {\n      metricsHtml += `<div style=\"margin:2px 0;font-size:13px;\"><strong>${key}:</strong> ${val}</div>`;\n    });\n  }\n  let highlightsHtml = '';\n  if (highlights && highlights.length > 0) {\n    highlightsHtml = '<ul style=\"margin:5px 0;padding-left:16px;font-size:12px;color:#555;\">';\n    highlights.forEach(h => { highlightsHtml += `<li>${h}</li>`; });\n    highlightsHtml += '</ul>';\n  }\n  return `\n    <td style=\"width:33%;padding:8px;vertical-align:top;\">\n      <div style=\"background:#ffffff;border-radius:8px;padding:14px;border:1px solid #e8e8e8;box-shadow:0 1px 3px rgba(0,0,0,0.06);height:100%;\">\n        <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;\">\n          <span style=\"font-weight:bold;font-size:14px;\">${icon} ${name}</span>\n          <span style=\"display:inline-block;width:12px;height:12px;border-radius:50%;background:${statusColor(s)};\"></span>\n        </div>\n        ${metricsHtml}\n        ${highlightsHtml}\n      </div>\n    </td>\n  `;\n}\n\n// Channel Report Karten bauen\nconst cr = ai.channelReports || {};\n\nfunction getChannelMetrics(key) {\n  if (!cr[key]) return {};\n  return cr[key].keyMetrics || {};\n}\n\nfunction getChannelHighlights(key) {\n  if (!cr[key]) return [];\n  return cr[key].highlights || [];\n}\n\n// Top Insights Section\nlet insightsHtml = '';\nif (ai.topInsights && ai.topInsights.length > 0) {\n  ai.topInsights.forEach((insight, i) => {\n    insightsHtml += `\n      <div style=\"background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:10px;border-left:4px solid ${statusColor(insight.impact === 'high' ? 'red' : insight.impact === 'medium' ? 'yellow' : 'green')};box-shadow:0 1px 3px rgba(0,0,0,0.05);\">\n        <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;\">\n          <strong style=\"font-size:14px;\">${trendIcon(insight.trend)} ${insight.title}</strong>\n          ${impactBadge(insight.impact)}\n        </div>\n        <div style=\"font-size:13px;color:#444;line-height:1.5;\">${insight.description}</div>\n        <div style=\"margin-top:6px;font-size:11px;color:#888;\">Kanäle: ${(insight.channels || []).join(', ')}</div>\n      </div>\n    `;\n  });\n}\n\n// Cross-Channel Insights\nlet crossChannelHtml = '';\nif (ai.crossChannelInsights && ai.crossChannelInsights.length > 0) {\n  ai.crossChannelInsights.forEach(ci => {\n    crossChannelHtml += `\n      <div style=\"background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:10px;border-left:4px solid #3498db;box-shadow:0 1px 3px rgba(0,0,0,0.05);\">\n        <div style=\"font-size:13px;color:#444;line-height:1.5;\"><strong>🔗</strong> ${ci.insight}</div>\n        <div style=\"margin-top:6px;font-size:12px;color:#666;\">→ <em>${ci.recommendation}</em></div>\n        <div style=\"margin-top:4px;font-size:11px;color:#888;\">Kanäle: ${(ci.channels || []).join(' ↔ ')}</div>\n      </div>\n    `;\n  });\n}\n\n// Action Items\nlet actionsHtml = '';\nif (ai.actionItems && ai.actionItems.length > 0) {\n  ai.actionItems.forEach((item, i) => {\n    const prioColor = item.priority <= 1 ? '#e74c3c' : item.priority <= 3 ? '#f39c12' : '#2ecc71';\n    actionsHtml += `\n      <tr>\n        <td style=\"padding:10px 12px;border-bottom:1px solid #eee;text-align:center;\">\n          <span style=\"background:${prioColor};color:#fff;padding:3px 10px;border-radius:12px;font-weight:bold;font-size:13px;\">#${item.priority}</span>\n        </td>\n        <td style=\"padding:10px 12px;border-bottom:1px solid #eee;\">\n          <strong style=\"font-size:13px;\">${item.action}</strong>\n          <div style=\"font-size:12px;color:#666;margin-top:3px;\">${item.reason}</div>\n        </td>\n        <td style=\"padding:10px 12px;border-bottom:1px solid #eee;text-align:center;font-size:12px;\">\n          ${effortBadge(item.effort)}\n        </td>\n        <td style=\"padding:10px 12px;border-bottom:1px solid #eee;font-size:12px;color:#555;\">${item.expectedImpact || ''}</td>\n      </tr>\n    `;\n  });\n}\n\n// === FULL HTML REPORT ===\nconst html = `\n<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Abteilungsleiter Report ${meta.dateLabel}</title>\n</head>\n<body style=\"margin:0;padding:0;background-color:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;\">\n  <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\" style=\"background-color:#f5f5f5;\">\n    <tr>\n      <td align=\"center\" style=\"padding:20px 10px;\">\n        <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"650\" style=\"max-width:650px;width:100%;\">\n\n          <!-- HEADER -->\n          <tr>\n            <td style=\"background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);border-radius:12px 12px 0 0;padding:30px 32px;text-align:center;\">\n              <div style=\"font-size:28px;font-weight:bold;color:#ffffff;margin-bottom:6px;\">🏢 ABTEILUNGSLEITER REPORT</div>\n              <div style=\"font-size:16px;color:#a0aec0;\">${meta.dateLabel} · ${meta.weekStartDE} – ${meta.weekEndDE}</div>\n              <div style=\"font-size:13px;color:#718096;margin-top:4px;\">${meta.companyName}</div>\n            </td>\n          </tr>\n\n          <!-- AMPEL STATUS -->\n          <tr>\n            <td style=\"background:${statusBgColor(ai.overallStatus)};padding:20px 32px;border-left:1px solid #e8e8e8;border-right:1px solid #e8e8e8;\">\n              <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\">\n                <tr>\n                  <td width=\"60\" style=\"vertical-align:middle;text-align:center;\">\n                    <div style=\"width:48px;height:48px;border-radius:50%;background:${statusColor(ai.overallStatus)};display:inline-block;line-height:48px;font-size:24px;text-align:center;\">${statusEmoji(ai.overallStatus)}</div>\n                  </td>\n                  <td style=\"vertical-align:middle;padding-left:16px;\">\n                    <div style=\"font-size:18px;font-weight:bold;color:#1a1a2e;\">Gesamtstatus: ${ai.overallStatus === 'green' ? 'Alles im grünen Bereich' : ai.overallStatus === 'yellow' ? 'Aufmerksamkeit erforderlich' : 'Dringender Handlungsbedarf'}</div>\n                    <div style=\"font-size:13px;color:#555;margin-top:4px;\">${ai.overallStatusReason || ''}</div>\n                  </td>\n                </tr>\n              </table>\n            </td>\n          </tr>\n\n          <!-- EXECUTIVE SUMMARY -->\n          <tr>\n            <td style=\"background:#ffffff;padding:24px 32px;border-left:1px solid #e8e8e8;border-right:1px solid #e8e8e8;\">\n              <div style=\"font-size:16px;font-weight:bold;color:#1a1a2e;margin-bottom:10px;\">📋 Executive Summary</div>\n              <div style=\"font-size:14px;color:#333;line-height:1.6;\">${ai.executiveSummary || 'Keine Zusammenfassung verfügbar.'}</div>\n            </td>\n          </tr>\n\n          <!-- TOP ERKENNTNISSE -->\n          <tr>\n            <td style=\"background:#f8f9fa;padding:24px 32px;border-left:1px solid #e8e8e8;border-right:1px solid #e8e8e8;\">\n              <div style=\"font-size:16px;font-weight:bold;color:#1a1a2e;margin-bottom:14px;\">🔥 Top Erkenntnisse</div>\n              ${insightsHtml || '<div style=\"font-size:13px;color:#888;\">Keine Erkenntnisse verfügbar.</div>'}\n            </td>\n          </tr>\n\n          <!-- KANAL-ÜBERSICHT (Cards) -->\n          <tr>\n            <td style=\"background:#ffffff;padding:24px 32px;border-left:1px solid #e8e8e8;border-right:1px solid #e8e8e8;\">\n              <div style=\"font-size:16px;font-weight:bold;color:#1a1a2e;margin-bottom:14px;\">📊 Kanal-Übersicht</div>\n              <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\">\n                <tr>\n                  ${channelCard('SEO', '🔍', cr.seo?.status, getChannelMetrics('seo'), getChannelHighlights('seo'))}\n                  ${channelCard('Funnel', '📊', cr.funnel?.status, getChannelMetrics('funnel'), getChannelHighlights('funnel'))}\n                  ${channelCard('UX', '🖱️', cr.ux?.status, getChannelMetrics('ux'), getChannelHighlights('ux'))}\n                </tr>\n                <tr><td colspan=\"3\" style=\"height:10px;\"></td></tr>\n                <tr>\n                  ${channelCard('Keywords', '🔑', cr.keywords?.status, getChannelMetrics('keywords'), getChannelHighlights('keywords'))}\n                  ${channelCard('LinkedIn', '💼', cr.linkedin?.status, getChannelMetrics('linkedin'), getChannelHighlights('linkedin'))}\n                  ${channelCard('AI Vis.', '🤖', cr.ai_visibility?.status, getChannelMetrics('ai_visibility'), getChannelHighlights('ai_visibility'))}\n                </tr>\n                <tr><td colspan=\"3\" style=\"height:10px;\"></td></tr>\n                <tr>\n                  ${channelCard('Sentiment', '💬', cr.social_sentiment?.status, getChannelMetrics('social_sentiment'), getChannelHighlights('social_sentiment'))}\n                  <td style=\"width:33%;\"></td>\n                  <td style=\"width:33%;\"></td>\n                </tr>\n              </table>\n            </td>\n          </tr>\n\n          <!-- KANALÜBERGREIFENDE INSIGHTS -->\n          <tr>\n            <td style=\"background:#f8f9fa;padding:24px 32px;border-left:1px solid #e8e8e8;border-right:1px solid #e8e8e8;\">\n              <div style=\"font-size:16px;font-weight:bold;color:#1a1a2e;margin-bottom:14px;\">🔗 Kanalübergreifende Insights</div>\n              ${crossChannelHtml || '<div style=\"font-size:13px;color:#888;\">Keine kanalübergreifenden Zusammenhänge identifiziert.</div>'}\n            </td>\n          </tr>\n\n          <!-- HANDLUNGSEMPFEHLUNGEN -->\n          <tr>\n            <td style=\"background:#ffffff;padding:24px 32px;border-left:1px solid #e8e8e8;border-right:1px solid #e8e8e8;\">\n              <div style=\"font-size:16px;font-weight:bold;color:#1a1a2e;margin-bottom:14px;\">✅ Handlungsempfehlungen (priorisiert)</div>\n              <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"100%\" style=\"border-radius:8px;overflow:hidden;\">\n                <thead>\n                  <tr style=\"background:#f8f9fa;\">\n                    <th style=\"padding:8px 12px;text-align:center;font-size:12px;color:#666;border-bottom:2px solid #e8e8e8;width:60px;\">Prio</th>\n                    <th style=\"padding:8px 12px;text-align:left;font-size:12px;color:#666;border-bottom:2px solid #e8e8e8;\">Maßnahme</th>\n                    <th style=\"padding:8px 12px;text-align:center;font-size:12px;color:#666;border-bottom:2px solid #e8e8e8;width:70px;\">Aufwand</th>\n                    <th style=\"padding:8px 12px;text-align:left;font-size:12px;color:#666;border-bottom:2px solid #e8e8e8;width:150px;\">Erwarteter Impact</th>\n                  </tr>\n                </thead>\n                <tbody>\n                  ${actionsHtml || '<tr><td colspan=\"4\" style=\"padding:12px;text-align:center;color:#888;\">Keine Handlungsempfehlungen</td></tr>'}\n                </tbody>\n              </table>\n            </td>\n          </tr>\n\n          <!-- WOCHE-ZU-WOCHE VERGLEICH -->\n          <tr>\n            <td style=\"background:#f8f9fa;padding:24px 32px;border-left:1px solid #e8e8e8;border-right:1px solid #e8e8e8;\">\n              <div style=\"font-size:16px;font-weight:bold;color:#1a1a2e;margin-bottom:10px;\">📈 Woche-zu-Woche Vergleich</div>\n              <div style=\"font-size:14px;color:#333;line-height:1.6;\">${ai.weekOverWeekSummary || (hasPrev ? 'Kein Vergleich generiert.' : 'Erster Report – kein Vorwochenvergleich möglich.')}</div>\n            </td>\n          </tr>\n\n          <!-- FOOTER -->\n          <tr>\n            <td style=\"background:#1a1a2e;border-radius:0 0 12px 12px;padding:20px 32px;text-align:center;\">\n              <div style=\"font-size:12px;color:#718096;\">ℹ️ Quellen: ${current.sourceSummary?.ratio || '?/?'} verfügbar</div>\n              <div style=\"font-size:11px;color:#4a5568;margin-top:4px;\">Generiert: ${meta.reportDateDE} · ${meta.companyName} · Abteilungsleiter Agent v1.0</div>\n              ${current.unavailableSources && current.unavailableSources.length > 0 ? '<div style=\"font-size:11px;color:#e74c3c;margin-top:6px;\">⚠️ Fehlende Quellen: ' + current.unavailableSources.map(s => s.label).join(', ') + '</div>' : ''}\n            </td>\n          </tr>\n\n        </table>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>\n`;\n\nreturn {\n  json: {\n    html: html,\n    subject: `🏢 Abteilungsleiter Report – ${meta.dateLabel} – ${statusEmoji(ai.overallStatus)}`,\n    recipient: $('⚙️ Konfiguration').first().json.reportRecipient,\n    overallStatus: ai.overallStatus,\n    aiReport: ai\n  }\n};"
+      },
+      "id": "generate-html",
+      "name": "📝 HTML Report generieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2420, 300],
+      "notes": "Generates professional, email-compatible HTML report with inline CSS, traffic light badges, channel cards, delta arrows"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.recipient }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "📧 Report versenden",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2680, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail OAuth2"
+        }
+      },
+      "notes": "Sends the HTML report via Gmail to configured recipient"
+    },
+    {
+      "parameters": {},
+      "id": "end-node",
+      "name": "✅ Workflow Complete",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2940, 150],
+      "notes": "End of workflow - report sent and snapshot saved"
+    }
+  ],
+  "connections": {
+    "⏰ Montag 10:00 Trigger": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Konfiguration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "▶️ Manueller Test": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Konfiguration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌐 Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Konfiguration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Konfiguration": {
+      "main": [
+        [
+          {
+            "node": "📅 Datumsbereich berechnen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📅 Datumsbereich berechnen": {
+      "main": [
+        [
+          {
+            "node": "🔍 SEO Dashboard abrufen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📊 Funnel Report abrufen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🖱️ Clarity Report abrufen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "🔑 Keyword Tracker abrufen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "💼 LinkedIn Monitor abrufen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📱 AI Visibility laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "💬 Comment Intelligence laden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 SEO Dashboard abrufen": {
+      "main": [
+        [
+          {
+            "node": "📦 Daten normalisieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Funnel Report abrufen": {
+      "main": [
+        [
+          {
+            "node": "📦 Daten normalisieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🖱️ Clarity Report abrufen": {
+      "main": [
+        [
+          {
+            "node": "📦 Daten normalisieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔑 Keyword Tracker abrufen": {
+      "main": [
+        [
+          {
+            "node": "📦 Daten normalisieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💼 LinkedIn Monitor abrufen": {
+      "main": [
+        [
+          {
+            "node": "📦 Daten normalisieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📱 AI Visibility laden": {
+      "main": [
+        [
+          {
+            "node": "📦 Daten normalisieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💬 Comment Intelligence laden": {
+      "main": [
+        [
+          {
+            "node": "📦 Daten normalisieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 Daten normalisieren": {
+      "main": [
+        [
+          {
+            "node": "📂 Vorwochen-Snapshot laden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📂 Vorwochen-Snapshot laden": {
+      "main": [
+        [
+          {
+            "node": "📊 Veränderungen berechnen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Veränderungen berechnen": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI Abteilungsleiter Analyse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI Abteilungsleiter Analyse": {
+      "main": [
+        [
+          {
+            "node": "🔄 AI Response parsen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 AI Response parsen": {
+      "main": [
+        [
+          {
+            "node": "💾 Wöchentlichen Snapshot speichern",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📝 HTML Report generieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Wöchentlichen Snapshot speichern": {
+      "main": [
+        [
+          {
+            "node": "✅ Workflow Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 HTML Report generieren": {
+      "main": [
+        [
+          {
+            "node": "📧 Report versenden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📧 Report versenden": {
+      "main": [
+        [
+          {
+            "node": "✅ Workflow Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Berlin",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Agent",
+      "id": "agent-tag"
+    },
+    {
+      "name": "Reporting",
+      "id": "reporting-tag"
+    },
+    {
+      "name": "Weekly",
+      "id": "weekly-tag"
+    },
+    {
+      "name": "AI",
+      "id": "ai-tag"
+    }
+  ],
+  "triggerCount": 3,
+  "versionId": "1",
+  "meta": {
+    "instanceId": "",
+    "templateCredsSetupCompleted": false
+  }
+}
