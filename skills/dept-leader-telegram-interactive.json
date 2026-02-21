@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "# 🎙️ Abteilungsleiter Agent – Telegram Interaktiv\n\nDieser Workflow ermöglicht die **interaktive Kommunikation** mit dem Abteilungsleiter-Agenten über Telegram.\n\n## Features:\n- 🎤 **Spracheingabe** via Telegram Voice Messages (Whisper STT)\n- 💬 **Textingabe** via Telegram Chat\n- 🤖 **KI-Dialog** mit Konversationsgedächtnis\n- 🔄 **On-Demand Abruf** einzelner Sub-Workflows\n- 📊 **Ergebnis-Diskussion** im Chat\n\n## Befehle:\n- \"Zeig mir den SEO Report\" → Ruft SEO Dashboard ab\n- \"Wie steht's mit LinkedIn?\" → Ruft LinkedIn Monitor ab\n- \"Aktualisiere alle Daten\" → Triggert kompletten Report\n- \"Was sind die Top-Prioritäten?\" → Zeigt Action Items\n- Oder einfach frei über Ergebnisse diskutieren\n\n## Benötigte Credentials:\n- Telegram Bot API Token\n- OpenAI API (Whisper + GPT-4.1)\n- Google Sheets OAuth2",
+        "content": "# 🎙️ Abteilungsleiter Agent – Telegram Interaktiv\n\nDieser Workflow ermöglicht die **interaktive Kommunikation** mit dem Abteilungsleiter-Agenten über Telegram.\n\n## Features:\n- 🎤 **Spracheingabe** via Telegram Voice Messages (Whisper STT)\n- 💬 **Textingabe** via Telegram Chat\n- 🤖 **KI-Dialog** mit Konversationsgedächtnis\n- 🔄 **On-Demand Abruf** einzelner Sub-Workflows\n- 📊 **Ergebnis-Diskussion** im Chat\n\n## Befehle:\n- \"Zeig mir den SEO Report\" → Ruft SEO Dashboard ab\n- \"Wie steht's mit LinkedIn?\" → Ruft LinkedIn Monitor ab\n- \"Aktualisiere alle Daten\" → Triggert kompletten Report\n- \"Was sind die Top-Prioritäten?\" → Zeigt Action Items\n- Oder einfach frei über Ergebnisse diskutieren\n\n## Benötigte Credentials:\n- Telegram Bot API Token\n- OpenAI API (Nativer Node: Whisper STT + GPT-4.1 Chat)\n- Google Sheets OAuth2",
         "width": 520,
         "height": 480,
         "color": 4
@@ -175,41 +175,17 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.openai.com/v1/audio/transcriptions",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "openAiApi",
-        "contentType": "multipart-form-data",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "parameterType": "formBinaryData",
-              "name": "file",
-              "inputDataFieldName": "data"
-            },
-            {
-              "name": "model",
-              "value": "whisper-1"
-            },
-            {
-              "name": "language",
-              "value": "de"
-            },
-            {
-              "name": "response_format",
-              "value": "json"
-            }
-          ]
-        },
+        "resource": "audio",
+        "operation": "transcribe",
+        "binaryPropertyName": "data",
         "options": {
-          "timeout": 30000
+          "language": "de"
         }
       },
       "id": "ffe818f5-be7a-46e1-9628-b05ee76e7a44",
       "name": "🎤 Whisper Speech-to-Text",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
         960,
         200
@@ -220,7 +196,7 @@
           "name": "OpenAI API"
         }
       },
-      "notes": "Konvertiert die Voice Message zu Text via OpenAI Whisper (Deutsch)"
+      "notes": "Konvertiert die Voice Message zu Text via nativem OpenAI Whisper Node (Deutsch, Modell whisper-1 ist hardcoded)"
     },
     {
       "parameters": {
@@ -568,21 +544,36 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.openai.com/v1/chat/completions",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "openAiApi",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"gpt-4.1\",\n  \"temperature\": 0.5,\n  \"max_tokens\": 2000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Du bist ein erfahrener Digital Marketing Abteilungsleiter, der über Telegram mit der Geschäftsführung kommuniziert.\\n\\nRegeln:\\n- Antworte auf Deutsch\\n- Formatiere für Telegram (Markdown)\\n- Sei prägnant aber informativ\\n- Nutze Emojis sparsam aber gezielt\\n- Nenne konkrete Zahlen und Veränderungen\\n- Gib bei Problemen sofort Handlungsempfehlungen\\n- Halte dich kurz (max 300 Wörter)\\n- Strukturiere mit Bullet Points\\n- Beende mit 1-2 konkreten Empfehlungen\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Der Nutzer {{ $json.firstName }} hat per Telegram nach '{{ $json.targetLabel }}' gefragt.\\n\\nOriginal-Nachricht: \\\"{{ $json.userMessage }}\\\"\\n\\nHier sind die aktuellen Daten:\\n{{ $json.hasError ? 'FEHLER: ' + $json.errorMessage : JSON.stringify($json.rawData, null, 2) }}\\n\\nBitte erstelle eine kurze, Telegram-formatierte Zusammenfassung dieser Daten.\"\n    }\n  ]\n}",
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "id",
+          "cachedResultName": "gpt-4.1"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Du bist ein erfahrener Digital Marketing Abteilungsleiter, der über Telegram mit der Geschäftsführung kommuniziert.\n\nRegeln:\n- Antworte auf Deutsch\n- Formatiere für Telegram (Markdown)\n- Sei prägnant aber informativ\n- Nutze Emojis sparsam aber gezielt\n- Nenne konkrete Zahlen und Veränderungen\n- Gib bei Problemen sofort Handlungsempfehlungen\n- Halte dich kurz (max 300 Wörter)\n- Strukturiere mit Bullet Points\n- Beende mit 1-2 konkreten Empfehlungen"
+            },
+            {
+              "role": "user",
+              "content": "=Der Nutzer {{ $json.firstName }} hat per Telegram nach '{{ $json.targetLabel }}' gefragt.\n\nOriginal-Nachricht: \"{{ $json.userMessage }}\"\n\nHier sind die aktuellen Daten:\n{{ $json.hasError ? 'FEHLER: ' + $json.errorMessage : JSON.stringify($json.rawData, null, 2) }}\n\nBitte erstelle eine kurze, Telegram-formatierte Zusammenfassung dieser Daten."
+            }
+          ]
+        },
+        "simplify": true,
         "options": {
-          "timeout": 60000
+          "temperature": 0.5,
+          "maxTokens": 2000
         }
       },
       "id": "af9efcaa-7f56-4979-9efb-214e5af3f2e6",
       "name": "🤖 AI Einzelanalyse",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
         3200,
         200
@@ -593,11 +584,11 @@
           "name": "OpenAI API"
         }
       },
-      "notes": "GPT-4.1 erstellt eine Telegram-formatierte Zusammenfassung des Sub-Workflow Ergebnisses"
+      "notes": "Nativer OpenAI Node – GPT-4.1 erstellt eine Telegram-formatierte Zusammenfassung des Sub-Workflow Ergebnisses"
     },
     {
       "parameters": {
-        "jsCode": "// ========================================\n// AI RESPONSE FÜR TELEGRAM AUFBEREITEN\n// Extrahiert den Text aus der OpenAI Response\n// ========================================\n\nconst response = $input.first().json;\nconst intentData = $('🧠 Intent erkennen').first().json;\n\nlet responseText;\ntry {\n  responseText = response.choices[0].message.content;\n} catch (e) {\n  responseText = '❌ Die AI-Analyse konnte nicht durchgeführt werden. Bitte versuche es erneut.';\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    responseText: responseText\n  }\n};"
+        "jsCode": "// ========================================\n// AI RESPONSE FÜR TELEGRAM AUFBEREITEN\n// Extrahiert den Text aus der nativen OpenAI Node Response\n// (simplify: true → $json.message.content)\n// ========================================\n\nconst response = $input.first().json;\nconst intentData = $('🧠 Intent erkennen').first().json;\n\nlet responseText;\ntry {\n  responseText = response.message.content;\n} catch (e) {\n  responseText = '❌ Die AI-Analyse konnte nicht durchgeführt werden. Bitte versuche es erneut.';\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    responseText: responseText\n  }\n};"
       },
       "id": "3a1bd7a1-98b7-40dc-be24-63f1fc84bf60",
       "name": "📝 Antwort formatieren",
@@ -755,21 +746,36 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.openai.com/v1/chat/completions",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "openAiApi",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"gpt-4.1\",\n  \"temperature\": 0.4,\n  \"max_tokens\": 2000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Du bist ein erfahrener Digital Marketing Abteilungsleiter, der über Telegram mit der Geschäftsführung kommuniziert.\\n\\nRegeln:\\n- Antworte auf Deutsch\\n- Formatiere für Telegram (Markdown)\\n- Sei prägnant aber informativ\\n- Nutze Emojis sparsam aber gezielt\\n- Nenne konkrete Zahlen\\n- Halte dich kurz (max 400 Wörter)\\n- Strukturiere mit Bullet Points\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.intent === 'show_actions' ? 'Zeige die aktuellen Handlungsempfehlungen und Prioritäten.' : 'Zeige eine Zusammenfassung des letzten Reports.' }}\\n\\nNutzer {{ $json.firstName }} fragt: \\\"{{ $json.userMessage }}\\\"\\n\\nLetzter Report: {{ $json.dateLabel }}\\nGesamtstatus: {{ $json.overallStatus }}\\n\\n{{ $json.hasData ? 'AI-Analyse:\\n' + JSON.stringify($json.aiAnalysis, null, 2) : 'Kein vorheriger Report gefunden. Empfehle dem Nutzer, zuerst einen kompletten Report zu erstellen.' }}\"\n    }\n  ]\n}",
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "id",
+          "cachedResultName": "gpt-4.1"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Du bist ein erfahrener Digital Marketing Abteilungsleiter, der über Telegram mit der Geschäftsführung kommuniziert.\n\nRegeln:\n- Antworte auf Deutsch\n- Formatiere für Telegram (Markdown)\n- Sei prägnant aber informativ\n- Nutze Emojis sparsam aber gezielt\n- Nenne konkrete Zahlen\n- Halte dich kurz (max 400 Wörter)\n- Strukturiere mit Bullet Points"
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.intent === 'show_actions' ? 'Zeige die aktuellen Handlungsempfehlungen und Prioritäten.' : 'Zeige eine Zusammenfassung des letzten Reports.' }}\n\nNutzer {{ $json.firstName }} fragt: \"{{ $json.userMessage }}\"\n\nLetzter Report: {{ $json.dateLabel }}\nGesamtstatus: {{ $json.overallStatus }}\n\n{{ $json.hasData ? 'AI-Analyse:\\n' + JSON.stringify($json.aiAnalysis, null, 2) : 'Kein vorheriger Report gefunden. Empfehle dem Nutzer, zuerst einen kompletten Report zu erstellen.' }}"
+            }
+          ]
+        },
+        "simplify": true,
         "options": {
-          "timeout": 60000
+          "temperature": 0.4,
+          "maxTokens": 2000
         }
       },
       "id": "1d411cff-6e5b-4bd7-bb39-544bd9e70f67",
       "name": "🤖 AI Report-Zusammenfassung",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
         2540,
         600
@@ -780,11 +786,11 @@
           "name": "OpenAI API"
         }
       },
-      "notes": "GPT-4.1 erstellt eine Telegram-formatierte Zusammenfassung des letzten Reports"
+      "notes": "Nativer OpenAI Node – GPT-4.1 erstellt eine Telegram-formatierte Zusammenfassung des letzten Reports"
     },
     {
       "parameters": {
-        "jsCode": "// AI Response für Telegram extrahieren\nconst response = $input.first().json;\nconst intentData = $('🧠 Intent erkennen').first().json;\n\nlet text;\ntry {\n  text = response.choices[0].message.content;\n} catch (e) {\n  text = '❌ Konnte den Report nicht zusammenfassen. Versuche es erneut.';\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    responseText: text\n  }\n};"
+        "jsCode": "// AI Response für Telegram extrahieren (nativer OpenAI Node, simplify: true)\nconst response = $input.first().json;\nconst intentData = $('🧠 Intent erkennen').first().json;\n\nlet text;\ntry {\n  text = response.message.content;\n} catch (e) {\n  text = '❌ Konnte den Report nicht zusammenfassen. Versuche es erneut.';\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    responseText: text\n  }\n};"
       },
       "id": "da9b2289-6bd1-41bf-b9e7-174527b088d0",
       "name": "📝 Report-Antwort formatieren",
@@ -822,21 +828,36 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.openai.com/v1/chat/completions",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "openAiApi",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"gpt-4.1\",\n  \"temperature\": 0.6,\n  \"max_tokens\": 1500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Du bist ein erfahrener Digital Marketing Abteilungsleiter, der über Telegram mit der Geschäftsführung kommuniziert.\\n\\nDu hast Zugriff auf folgende Datenquellen:\\n- SEO/GEO Dashboard\\n- Funnel & Conversion\\n- Microsoft Clarity (UX)\\n- Keyword Rankings\\n- LinkedIn Monitor\\n- AI Visibility\\n- Comment Intelligence\\n\\nRegeln:\\n- Antworte auf Deutsch\\n- Formatiere für Telegram (Markdown)\\n- Sei ein hilfreicher, kompetenter Gesprächspartner\\n- Wenn du keine konkreten Daten hast, sage es ehrlich\\n- Empfehle ggf. einen spezifischen Report-Abruf\\n- Halte dich kurz (max 200 Wörter)\\n- Sei professionell aber zugänglich\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.firstName }} schreibt: \\\"{{ $json.userMessage }}\\\"\\n\\nBitte antworte als Abteilungsleiter. Wenn die Frage sich auf konkrete Daten bezieht, empfehle dem Nutzer den passenden Report abzurufen (z.B. 'Sag einfach SEO Report für die aktuellen SEO-Daten').\"\n    }\n  ]\n}",
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "id",
+          "cachedResultName": "gpt-4.1"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Du bist ein erfahrener Digital Marketing Abteilungsleiter, der über Telegram mit der Geschäftsführung kommuniziert.\n\nDu hast Zugriff auf folgende Datenquellen:\n- SEO/GEO Dashboard\n- Funnel & Conversion\n- Microsoft Clarity (UX)\n- Keyword Rankings\n- LinkedIn Monitor\n- AI Visibility\n- Comment Intelligence\n\nRegeln:\n- Antworte auf Deutsch\n- Formatiere für Telegram (Markdown)\n- Sei ein hilfreicher, kompetenter Gesprächspartner\n- Wenn du keine konkreten Daten hast, sage es ehrlich\n- Empfehle ggf. einen spezifischen Report-Abruf\n- Halte dich kurz (max 200 Wörter)\n- Sei professionell aber zugänglich"
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.firstName }} schreibt: \"{{ $json.userMessage }}\"\n\nBitte antworte als Abteilungsleiter. Wenn die Frage sich auf konkrete Daten bezieht, empfehle dem Nutzer den passenden Report abzurufen (z.B. 'Sag einfach SEO Report für die aktuellen SEO-Daten')."
+            }
+          ]
+        },
+        "simplify": true,
         "options": {
-          "timeout": 30000
+          "temperature": 0.6,
+          "maxTokens": 1500
         }
       },
       "id": "a6d0e8ad-5f16-436b-a75e-3e5e2f7e5f61",
       "name": "🤖 AI Konversation",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
         2100,
         800
@@ -847,11 +868,11 @@
           "name": "OpenAI API"
         }
       },
-      "notes": "GPT-4.1 führt eine freie Konversation als Abteilungsleiter"
+      "notes": "Nativer OpenAI Node – GPT-4.1 führt eine freie Konversation als Abteilungsleiter"
     },
     {
       "parameters": {
-        "jsCode": "// Konversations-Response für Telegram\nconst response = $input.first().json;\nconst intentData = $('🧠 Intent erkennen').first().json;\n\nlet text;\ntry {\n  text = response.choices[0].message.content;\n} catch (e) {\n  text = '🤔 Ich konnte deine Nachricht leider nicht verarbeiten. Versuche es nochmal oder schreibe /help.';\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    responseText: text\n  }\n};"
+        "jsCode": "// Konversations-Response für Telegram (nativer OpenAI Node, simplify: true)\nconst response = $input.first().json;\nconst intentData = $('🧠 Intent erkennen').first().json;\n\nlet text;\ntry {\n  text = response.message.content;\n} catch (e) {\n  text = '🤔 Ich konnte deine Nachricht leider nicht verarbeiten. Versuche es nochmal oder schreibe /help.';\n}\n\nreturn {\n  json: {\n    chatId: intentData.chatId,\n    responseText: text\n  }\n};"
       },
       "id": "cb819bef-3c32-4c9f-bd9e-36a746c70ffd",
       "name": "📝 Konversation formatieren",
