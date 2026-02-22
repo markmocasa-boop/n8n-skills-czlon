@@ -1,0 +1,495 @@
+{
+  "name": "WF6: Content-Erstellung",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-6001-4000-8000-000000000001",
+      "name": "Start: Content-Erstellung",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Gliederung"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "freigabe",
+              "lookupValue": "ja"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000002",
+      "name": "Gliederung laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-oauth2",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Semantische_Analyse"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000003",
+      "name": "Analyse-Daten laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-oauth2",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "User_Insights"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000004",
+      "name": "User Insights laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 600],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-oauth2",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000005",
+      "name": "Voice Profile laden",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [300, 800],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const gliederung = $('Gliederung laden').all().map(i => i.json);\nconst analyse = $('Analyse-Daten laden').all().map(i => i.json);\nconst insights = $('User Insights laden').all().map(i => i.json);\nconst voiceProfile = $('Voice Profile laden').first()?.json?.data || '';\n\n// Group outline items into sections for sequential writing\nconst sections = gliederung.map(item => ({\n  position: item.position,\n  ebene: item.ebene,\n  ueberschrift: item.ueberschrift,\n  typ: item.typ,\n  basiert_auf: item.basiert_auf,\n  stichpunkte: item.stichpunkte,\n  relevantAnalyse: analyse.filter(a => \n    a.keyword_oder_thema && item.stichpunkte?.includes(a.keyword_oder_thema)\n  ),\n  relevantInsights: insights.filter(i => i.unique_angle === 'ja')\n}));\n\nreturn sections.map(s => ({ json: { ...s, voiceProfile, totalSections: sections.length } }));"
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000006",
+      "name": "Sektionen vorbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000007",
+      "name": "Sektions-Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [950, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const section = $input.first().json;\nconst previousContent = $('Content in Draft speichern').all?.()?.map(i => i.json.content_raw)?.join('\\n\\n') || '';\n\nconst prompt = `Schreibe den folgenden Abschnitt eines SEO-Artikels.\n\n## Abschnitt: ${section.ueberschrift} (${section.ebene})\nTyp: ${section.typ}\nStichpunkte: ${section.stichpunkte}\nBasiert auf: ${section.basiert_auf}\n\n## Kontext (bereits geschriebene Abschnitte):\n${previousContent.slice(-3000)}\n\n## Relevante Analyse-Daten:\n${JSON.stringify(section.relevantAnalyse?.slice(0, 5))}\n\n## Einzigartige Insights:\n${JSON.stringify(section.relevantInsights?.slice(0, 5))}\n\n## Voice Profile:\n${section.voiceProfile?.slice(0, 2000)}\n\n## Anweisungen:\n- Schreibe in der Tonalität des Voice Profiles\n- Integriere die Stichpunkte natürlich in den Fließtext\n- Nutze die Unique Insights für Differenzierung\n- SEO-optimiert aber natürlich klingend\n- Nutze Übergänge zum vorherigen Abschnitt\n- Gib NUR den Abschnittstext zurück, keine Meta-Kommentare`;\n\nreturn [{ json: { prompt, section } }];"
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000008",
+      "name": "Schreib-Prompt erstellen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "prompt": "={{ $json.prompt }}",
+        "options": {
+          "systemMessage": "Du bist ein erfahrener SEO-Texter. Schreibe hochwertige, SEO-optimierte Inhalte in der gewünschten Tonalität. Liefere nur den reinen Abschnittstext ohne Meta-Kommentare."
+        }
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000009",
+      "name": "Claude: Sektion schreiben",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [1550, 400]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "options": {
+          "maxTokensToSample": 3000
+        }
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000009-model",
+      "name": "Claude: Sektion schreiben Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [1500, 550],
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-api-credential",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst section = $('Schreib-Prompt erstellen').first().json.section;\nconst contentRaw = response.text;\n\nreturn [{\n  json: {\n    abschnitt: `${section.position}. ${section.ueberschrift}`,\n    content_raw: contentRaw,\n    content_humanized: '',\n    content_final: ''\n  }\n}];"
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000010",
+      "name": "Antwort verarbeiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Content_Draft"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "abschnitt": "={{ $json.abschnitt }}",
+            "content_raw": "={{ $json.content_raw }}",
+            "content_humanized": "={{ $json.content_humanized }}",
+            "content_final": "={{ $json.content_final }}"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000011",
+      "name": "Content in Draft speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2150, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-oauth2",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allDrafts = $('Content in Draft speichern').all();\nconst fullArticle = allDrafts.map(d => d.json.content_raw).join('\\n\\n');\nreturn [{ json: { fullArticle, wordCount: fullArticle.split(/\\s+/).length } }];"
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000012",
+      "name": "Gesamten Artikel zusammensetzen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 400]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Projekt"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "content_erstellt"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000013",
+      "name": "Projekt-Status updaten",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2750, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-oauth2",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF6: Content-Erstellung\nAnthropic Chat Model schreibt sektionsweise mit Kontext-Injection",
+        "width": 600,
+        "height": 120,
+        "color": 5
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000014",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 50]
+    },
+    {
+      "parameters": {
+        "content": "Jede Sektion wird einzeln geschrieben mit Kontext der vorherigen Sektionen",
+        "width": 350,
+        "height": 80,
+        "color": 4
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000015",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1200, 50]
+    },
+    {
+      "parameters": {
+        "content": "Anthropic Chat Model für beste Schreibqualität",
+        "width": 280,
+        "height": 80,
+        "color": 6
+      },
+      "id": "a1b2c3d4-6001-4000-8000-000000000016",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1500, 50]
+    }
+  ],
+  "connections": {
+    "Start: Content-Erstellung": {
+      "main": [
+        [
+          {
+            "node": "Gliederung laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Analyse-Daten laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "User Insights laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Voice Profile laden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gliederung laden": {
+      "main": [
+        [
+          {
+            "node": "Sektionen vorbereiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyse-Daten laden": {
+      "main": [
+        [
+          {
+            "node": "Sektionen vorbereiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Insights laden": {
+      "main": [
+        [
+          {
+            "node": "Sektionen vorbereiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice Profile laden": {
+      "main": [
+        [
+          {
+            "node": "Sektionen vorbereiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sektionen vorbereiten": {
+      "main": [
+        [
+          {
+            "node": "Sektions-Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sektions-Batches": {
+      "main": [
+        [
+          {
+            "node": "Schreib-Prompt erstellen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gesamten Artikel zusammensetzen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schreib-Prompt erstellen": {
+      "main": [
+        [
+          {
+            "node": "Claude: Sektion schreiben",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Sektion schreiben": {
+      "main": [
+        [
+          {
+            "node": "Antwort verarbeiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Sektion schreiben Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude: Sektion schreiben",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Antwort verarbeiten": {
+      "main": [
+        [
+          {
+            "node": "Content in Draft speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content in Draft speichern": {
+      "main": [
+        [
+          {
+            "node": "Sektions-Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gesamten Artikel zusammensetzen": {
+      "main": [
+        [
+          {
+            "node": "Projekt-Status updaten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

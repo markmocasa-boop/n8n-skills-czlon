@@ -1,0 +1,812 @@
+{
+  "name": "WF5: Gliederung & Freigabe",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Start: Gliederung",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "sheetName": "Semantische_Analyse",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000002",
+      "name": "Semantische Analyse laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 150],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "sheetName": "User_Insights",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000003",
+      "name": "User Insights laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 350],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "sheetName": "Keywords",
+        "options": {},
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "selected",
+              "lookupValue": "ja"
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000004",
+      "name": "Keywords laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 550],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "Profile/voice-profile.md"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000005",
+      "name": "Voice Profile laden",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [300, 750],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "Profile/brand-profile.md"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000006",
+      "name": "Brand Profile laden",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [300, 950],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "Profile/sitemap.md"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000007",
+      "name": "Sitemap laden",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [300, 1150],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "Profile/plugin-empfehlungen.md"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000008",
+      "name": "Plugin-Empfehlungen laden",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [300, 1350],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const analyse = $('Semantische Analyse laden').all().map(i => i.json);\nconst insights = $('User Insights laden').all().map(i => i.json);\nconst keywords = $('Keywords laden').all().map(i => i.json);\n\nconst commodityTopics = analyse.filter(a => a.kategorie === 'pflicht');\nconst uniqueAngles = insights.filter(i => i.unique_angle === 'ja');\nconst gaps = analyse.filter(a => a.kategorie === 'luecke');\n\nconst voiceProfile = $('Voice Profile laden').first()?.json?.data || 'Nicht verfügbar';\nconst brandProfile = $('Brand Profile laden').first()?.json?.data || 'Nicht verfügbar';\nconst sitemap = $('Sitemap laden').first()?.json?.data || 'Nicht verfügbar';\nconst plugins = $('Plugin-Empfehlungen laden').first()?.json?.data || 'Nicht verfügbar';\n\nreturn [{\n  json: {\n    commodityTopics,\n    uniqueAngles,\n    gaps,\n    keywords,\n    allInsights: insights,\n    voiceProfile,\n    brandProfile,\n    sitemap,\n    pluginEmpfehlungen: plugins\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000009",
+      "name": "Alle Daten konsolidieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 500]
+    },
+    {
+      "parameters": {
+        "prompt": "=Erstelle eine SEO-optimierte Artikelgliederung basierend auf folgenden Daten:\n\n## Pflicht-Themen (Commodity Topics):\n{{ JSON.stringify($json.commodityTopics) }}\n\n## Unique Angles:\n{{ JSON.stringify($json.uniqueAngles) }}\n\n## Semantische Lücken:\n{{ JSON.stringify($json.gaps) }}\n\n## Keywords:\n{{ JSON.stringify($json.keywords) }}\n\n## Alle User Insights:\n{{ JSON.stringify($json.allInsights) }}\n\n## Sitemap (bestehende Seiten):\n{{ $json.sitemap }}\n\n## Plugin-Empfehlungen:\n{{ $json.pluginEmpfehlungen }}\n\nGib die Gliederung als JSON-Array zurück.",
+        "options": {
+          "systemMessage": "Du bist ein erfahrener SEO-Content-Stratege. Erstelle eine detaillierte Artikelgliederung basierend auf den folgenden Daten.\n\nRegeln:\n1. PFLICHT-Themen (Commodity Topics) müssen abgedeckt werden\n2. Unique Angles und Expert Insights priorisieren für Differenzierung\n3. Semantische Lücken der Wettbewerber als Chance nutzen\n4. Suchintentionen der Keywords berücksichtigen\n5. Gliederung im JSON-Format zurückgeben mit: position, ebene (h1/h2/h3), ueberschrift, typ (einleitung/kerninfo/hauptteil/fehler/faq/fazit), basiert_auf, stichpunkte\n\nVoice Profile: {{ $json.voiceProfile }}\nBrand Profile: {{ $json.brandProfile }}"
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000010",
+      "name": "Claude: Gliederung generieren",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [1050, 500]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "options": {
+          "maxTokensToSample": 4096
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000010-model",
+      "name": "Claude: Gliederung generieren Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [1000, 650],
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-api-credential",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.text;\n// Extract JSON from Claude's response\nconst jsonMatch = content.match(/\\[[\\s\\S]*\\]/);\nif (!jsonMatch) {\n  return [{ json: { error: 'Gliederung konnte nicht geparst werden', raw: content } }];\n}\nconst outline = JSON.parse(jsonMatch[0]);\nreturn outline.map((item, idx) => ({\n  json: {\n    position: idx + 1,\n    ebene: item.ebene,\n    ueberschrift: item.ueberschrift,\n    typ: item.typ,\n    basiert_auf: item.basiert_auf || '',\n    stichpunkte: item.stichpunkte || '',\n    freigabe: 'nein'\n  }\n}));"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000011",
+      "name": "Gliederung parsen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 500]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetName": "Gliederung",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "position": "={{ $json.position }}",
+            "ebene": "={{ $json.ebene }}",
+            "ueberschrift": "={{ $json.ueberschrift }}",
+            "typ": "={{ $json.typ }}",
+            "basiert_auf": "={{ $json.basiert_auf }}",
+            "stichpunkte": "={{ $json.stichpunkte }}",
+            "freigabe": "={{ $json.freigabe }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000012",
+      "name": "Gliederung speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1650, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "sheetName": "Projekt",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "gliederung"
+          }
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000013",
+      "name": "Projekt-Status updaten",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1650, 700],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#seo-content-agent"
+        },
+        "text": "=Die Gliederung wurde erstellt und wartet auf Freigabe.\nLink: {{ $env.N8N_BASE_URL }}/form/gliederung-freigabe\nProjekt-ID: {{ $json.projekt_id }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000014",
+      "name": "Benachrichtigung: Gliederungs-Freigabe",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1950, 500],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-api-credential",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "formTitle": "Gliederungs-Freigabe",
+        "formDescription": "Prüfe die generierte Gliederung und gib sie frei oder passe sie an.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "projekt_id",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": ""
+            },
+            {
+              "fieldLabel": "freigabe_gesamt",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Freigegeben"
+                  },
+                  {
+                    "option": "Anpassungen nötig"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "korrekturen",
+              "fieldType": "textarea",
+              "requiredField": false,
+              "placeholder": "Beschreibe Änderungen an der Gliederung..."
+            },
+            {
+              "fieldLabel": "kommentar",
+              "fieldType": "textarea",
+              "requiredField": false,
+              "placeholder": ""
+            }
+          ]
+        },
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000015",
+      "name": "Gliederungs-Freigabe Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [0, 1200],
+      "webhookId": "gliederung-freigabe"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nif (input.freigabe_gesamt === 'Freigegeben') {\n  return [{ json: { projekt_id: input.projekt_id, freigabe: 'ja', korrekturen: '' } }];\n}\nreturn [{ json: { projekt_id: input.projekt_id, freigabe: 'angepasst', korrekturen: input.korrekturen || '' } }];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000016",
+      "name": "Freigabe verarbeiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 1200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-freigabe",
+              "leftValue": "={{ $json.freigabe }}",
+              "rightValue": "angepasst",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000017",
+      "name": "Anpassungen nötig?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [600, 1200]
+    },
+    {
+      "parameters": {
+        "prompt": "=Bitte passe die folgende Gliederung an:\n\nKorrekturen:\n{{ $json.korrekturen }}\n\nGib die angepasste Gliederung als JSON-Array zurück.",
+        "options": {
+          "systemMessage": "Du bist ein erfahrener SEO-Content-Stratege. Du erhältst eine bestehende Gliederung und Korrekturwünsche. Passe die Gliederung entsprechend an und gib sie im gleichen JSON-Format zurück: position, ebene (h1/h2/h3), ueberschrift, typ, basiert_auf, stichpunkte."
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000018",
+      "name": "Claude: Gliederung anpassen",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [900, 1100]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "options": {
+          "maxTokensToSample": 4096
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000018-model",
+      "name": "Claude: Gliederung anpassen Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [850, 1250],
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-api-credential",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "sheetName": "Gliederung",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000019",
+      "name": "Angepasste Gliederung speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1200, 1100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "sheetName": "Gliederung",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "freigabe": "ja"
+          }
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000020",
+      "name": "Gliederung als freigegeben markieren",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [900, 1350],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "sheetName": "Projekt",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "gliederung_freigegeben"
+          }
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000021",
+      "name": "Status: Gliederung freigegeben",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1200, 1350],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF5: Gliederung & Freigabe\nAnthropic Chat Model generiert Outline aus allen Daten (Semantische Analyse, User Insights, Keywords, Profile).\nAnschließend Freigabe-Prozess via Formular.",
+        "width": 400,
+        "height": 200
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000030",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 50]
+    },
+    {
+      "parameters": {
+        "content": "## Google Drive Profile\nVoice Profile, Brand Profile, Sitemap und Plugin-Empfehlungen werden aus dem Profile/-Ordner geladen.",
+        "width": 350,
+        "height": 150
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000031",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 700]
+    },
+    {
+      "parameters": {
+        "content": "## Gliederungs-Freigabe\nVia Formular mit Korrekturmöglichkeit. Bei \"Anpassungen nötig\" wird Anthropic Chat Model erneut aufgerufen.",
+        "width": 350,
+        "height": 150
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000032",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 1100]
+    }
+  ],
+  "connections": {
+    "Start: Gliederung": {
+      "main": [
+        [
+          {
+            "node": "Semantische Analyse laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "User Insights laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Keywords laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Voice Profile laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Brand Profile laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sitemap laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Plugin-Empfehlungen laden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Semantische Analyse laden": {
+      "main": [
+        [
+          {
+            "node": "Alle Daten konsolidieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Insights laden": {
+      "main": [
+        [
+          {
+            "node": "Alle Daten konsolidieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keywords laden": {
+      "main": [
+        [
+          {
+            "node": "Alle Daten konsolidieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice Profile laden": {
+      "main": [
+        [
+          {
+            "node": "Alle Daten konsolidieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brand Profile laden": {
+      "main": [
+        [
+          {
+            "node": "Alle Daten konsolidieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sitemap laden": {
+      "main": [
+        [
+          {
+            "node": "Alle Daten konsolidieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plugin-Empfehlungen laden": {
+      "main": [
+        [
+          {
+            "node": "Alle Daten konsolidieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alle Daten konsolidieren": {
+      "main": [
+        [
+          {
+            "node": "Claude: Gliederung generieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Gliederung generieren": {
+      "main": [
+        [
+          {
+            "node": "Gliederung parsen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Gliederung generieren Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude: Gliederung generieren",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gliederung parsen": {
+      "main": [
+        [
+          {
+            "node": "Gliederung speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gliederung speichern": {
+      "main": [
+        [
+          {
+            "node": "Projekt-Status updaten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Projekt-Status updaten": {
+      "main": [
+        [
+          {
+            "node": "Benachrichtigung: Gliederungs-Freigabe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gliederungs-Freigabe Form": {
+      "main": [
+        [
+          {
+            "node": "Freigabe verarbeiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Freigabe verarbeiten": {
+      "main": [
+        [
+          {
+            "node": "Anpassungen nötig?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anpassungen nötig?": {
+      "main": [
+        [
+          {
+            "node": "Claude: Gliederung anpassen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gliederung als freigegeben markieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Gliederung anpassen": {
+      "main": [
+        [
+          {
+            "node": "Angepasste Gliederung speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Gliederung anpassen Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude: Gliederung anpassen",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Angepasste Gliederung speichern": {
+      "main": [
+        [
+          {
+            "node": "Status: Gliederung freigegeben",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gliederung als freigegeben markieren": {
+      "main": [
+        [
+          {
+            "node": "Status: Gliederung freigegeben",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "SEO Content Agent"
+    },
+    {
+      "name": "WF5"
+    }
+  ]
+}

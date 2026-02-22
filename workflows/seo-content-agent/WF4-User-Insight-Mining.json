@@ -1,0 +1,710 @@
+{
+  "name": "WF4: User Insight Mining",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "wf4-node-01",
+      "name": "Start: User Insight Mining",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Keywords"
+        }
+      },
+      "id": "wf4-node-02",
+      "name": "Keywords laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const keywords = $input.all().map(i => i.json.keyword);\nconst subreddits = ['SEO', 'marketing', 'content_marketing', 'digital_marketing', 'blogging'];\nreturn [{\n  json: {\n    keywords,\n    subreddits,\n    searchQueries: keywords.map(k => k + ' tips OR advice OR how to')\n  }\n}];"
+      },
+      "id": "wf4-node-03",
+      "name": "Suchbegriffe für Reddit/YouTube",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/trudax~reddit-scraper/runs",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"searches\": $json.searchQueries, \"maxItems\": 30, \"sort\": \"relevance\" }) }}",
+        "options": {}
+      },
+      "id": "wf4-node-04",
+      "name": "Apify: Reddit Scraping",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Apify API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 20,
+        "unit": "seconds"
+      },
+      "id": "wf4-node-05",
+      "name": "Warte auf Reddit",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/datasets/{{ $json.data.defaultDatasetId }}/items",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "wf4-node-06",
+      "name": "Apify: Reddit Ergebnisse",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Apify API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all();\nreturn results.map(item => ({\n  json: {\n    quelle: 'reddit',\n    subreddit_oder_kanal: item.json.subreddit || '',\n    typ: item.json.score > 50 ? 'loesung' : 'frage',\n    inhalt: (item.json.title + ' ' + (item.json.body || '')).slice(0, 2000),\n    relevanz_score: item.json.score || 0,\n    unique_angle: 'nein'\n  }\n}));"
+      },
+      "id": "wf4-node-07",
+      "name": "Reddit Insights extrahieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/bernardo~youtube-scraper/runs",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"searchQueries\": $json.keywords, \"maxResults\": 10 }) }}",
+        "options": {}
+      },
+      "id": "wf4-node-08",
+      "name": "Apify: YouTube Scraping",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Apify API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 25,
+        "unit": "seconds"
+      },
+      "id": "wf4-node-09",
+      "name": "Warte auf YouTube",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1200, 500]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/datasets/{{ $json.data.defaultDatasetId }}/items",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "wf4-node-10",
+      "name": "Apify: YouTube Ergebnisse",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Apify API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all();\nreturn results.map(item => ({\n  json: {\n    quelle: 'youtube',\n    subreddit_oder_kanal: item.json.channelName || '',\n    typ: 'loesung',\n    inhalt: (item.json.title + ' ' + (item.json.description || '')).slice(0, 2000),\n    relevanz_score: item.json.viewCount || 0,\n    unique_angle: 'nein'\n  }\n}));"
+      },
+      "id": "wf4-node-11",
+      "name": "YouTube Insights extrahieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 500]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 2
+      },
+      "id": "wf4-node-12",
+      "name": "Alle Insights zusammenführen",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2100, 350]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "User_Insights"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "quelle": "={{ $json.quelle }}",
+            "subreddit_oder_kanal": "={{ $json.subreddit_oder_kanal }}",
+            "typ": "={{ $json.typ }}",
+            "inhalt": "={{ $json.inhalt }}",
+            "relevanz_score": "={{ $json.relevanz_score }}",
+            "unique_angle": "={{ $json.unique_angle }}"
+          }
+        }
+      },
+      "id": "wf4-node-13",
+      "name": "Insights speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2400, 350],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Projekt"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "user_insights_mining"
+          }
+        },
+        "options": {}
+      },
+      "id": "wf4-node-14",
+      "name": "Projekt-Status updaten",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2400, 550],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#seo-content-agent"
+        },
+        "text": "={{ 'User Insight Mining abgeschlossen! Bitte Expert Input ausfüllen.\nForm-Link: ' + ($json.expert_form_url || '') + '\nProjekt-ID: ' + ($json.projekt_id || '') }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "wf4-node-15",
+      "name": "Benachrichtigung: Expert Input Form",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2700, 350],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-api-credential",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "formTitle": "Expert Input & Knowledge Gain",
+        "formDescription": "Form 3: Expert Input für SEO Content Agent",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "projekt_id",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": ""
+            },
+            {
+              "fieldLabel": "expertenwissen",
+              "fieldType": "textarea",
+              "requiredField": true,
+              "placeholder": "Teile dein Expertenwissen, Erfahrungswerte..."
+            },
+            {
+              "fieldLabel": "zitate",
+              "fieldType": "textarea",
+              "requiredField": false,
+              "placeholder": "Zitate zum Einbauen"
+            },
+            {
+              "fieldLabel": "unique_angle",
+              "fieldType": "textarea",
+              "requiredField": false,
+              "placeholder": "Spezifische Perspektive oder einzigartiger Blickwinkel"
+            },
+            {
+              "fieldLabel": "referenz_links",
+              "fieldType": "textarea",
+              "requiredField": false,
+              "placeholder": ""
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "respondWith": "text",
+        "responseText": "Danke für deinen Expert Input! Die semantische Lücken-Analyse wird gestartet."
+      },
+      "id": "wf4-node-16",
+      "name": "Expert Input Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [0, 800],
+      "webhookId": "wf4-expert-input-form"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst insights = [];\nif (input.expertenwissen) {\n  insights.push({ quelle: 'expert_input', typ: 'expert_take', inhalt: input.expertenwissen, unique_angle: 'ja' });\n}\nif (input.zitate) {\n  insights.push({ quelle: 'expert_input', typ: 'knowledge_gain', inhalt: input.zitate, unique_angle: 'ja' });\n}\nif (input.unique_angle) {\n  insights.push({ quelle: 'expert_input', typ: 'knowledge_gain', inhalt: input.unique_angle, unique_angle: 'ja' });\n}\nreturn insights.map(i => ({ json: { ...i, subreddit_oder_kanal: 'expert', relevanz_score: 100, projekt_id: input.projekt_id } }));"
+      },
+      "id": "wf4-node-17",
+      "name": "Expert Input formatieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 800]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "User_Insights"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "quelle": "={{ $json.quelle }}",
+            "subreddit_oder_kanal": "={{ $json.subreddit_oder_kanal }}",
+            "typ": "={{ $json.typ }}",
+            "inhalt": "={{ $json.inhalt }}",
+            "relevanz_score": "={{ $json.relevanz_score }}",
+            "unique_angle": "={{ $json.unique_angle }}",
+            "projekt_id": "={{ $json.projekt_id }}"
+          }
+        }
+      },
+      "id": "wf4-node-18",
+      "name": "Expert Insights speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [600, 800],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.voyageai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"model\": \"voyage-large-2\", \"input\": $input.all().map(i => i.json.inhalt) }) }}",
+        "options": {}
+      },
+      "id": "wf4-node-19",
+      "name": "Voyage AI: Gap Analysis Embeddings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 800],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Voyage AI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Semantische Lücken identifizieren\n// Berechne welche Themen aus den Insights NICHT in SERP Content abgedeckt sind\n// Verwende Kosinus-Ähnlichkeit um Lücken zu finden\n\nconst embeddings = $input.first().json;\nconst data = embeddings.data || [];\n\nfunction cosineSimilarity(a, b) {\n  let dotProduct = 0;\n  let normA = 0;\n  let normB = 0;\n  for (let i = 0; i < a.length; i++) {\n    dotProduct += a[i] * b[i];\n    normA += a[i] * a[i];\n    normB += b[i] * b[i];\n  }\n  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));\n}\n\n// Identifiziere Insights mit geringer Ähnlichkeit zu SERP-Inhalten (= Lücken)\nconst gaps = [];\nfor (let i = 0; i < data.length; i++) {\n  const embedding = data[i].embedding;\n  let maxSimilarity = 0;\n  \n  // Vergleiche mit allen anderen Embeddings\n  for (let j = 0; j < data.length; j++) {\n    if (i !== j) {\n      const sim = cosineSimilarity(embedding, data[j].embedding);\n      if (sim > maxSimilarity) maxSimilarity = sim;\n    }\n  }\n  \n  // Niedrige Ähnlichkeit = potentielle Lücke\n  if (maxSimilarity < 0.7) {\n    gaps.push({\n      json: {\n        analyse_typ: 'unique_angle',\n        keyword_oder_thema: 'insight_' + i,\n        score: Math.round((1 - maxSimilarity) * 100),\n        details: 'Semantische Lücke erkannt - Thema wird in SERP nicht ausreichend abgedeckt',\n        kategorie: 'luecke'\n      }\n    });\n  }\n}\n\nreturn gaps.length > 0 ? gaps : [{ json: { analyse_typ: 'unique_angle', keyword_oder_thema: 'keine_luecken', score: 0, details: 'Keine signifikanten Lücken gefunden', kategorie: 'luecke' } }];"
+      },
+      "id": "wf4-node-20",
+      "name": "Semantische Lücken identifizieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 800]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Semantische_Analyse"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "analyse_typ": "={{ $json.analyse_typ }}",
+            "keyword_oder_thema": "={{ $json.keyword_oder_thema }}",
+            "score": "={{ $json.score }}",
+            "details": "={{ $json.details }}",
+            "kategorie": "={{ $json.kategorie }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "wf4-node-21",
+      "name": "Lücken-Analyse speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1500, 800],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF4: User Insight Mining\n**Reddit, YouTube & Expert Input**\n\nDieser Workflow sammelt Nutzer-Insights aus Reddit und YouTube,\nkombiniert sie mit Expert Input und führt eine semantische\nLücken-Analyse durch.",
+        "width": 400,
+        "height": 200,
+        "color": 4
+      },
+      "id": "wf4-sticky-01",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 50]
+    },
+    {
+      "parameters": {
+        "content": "## Apify Actors\n- **Reddit:** trudax/reddit-scraper\n- **YouTube:** bernardo/youtube-scraper\n\nBeide benötigen Apify API Key als httpHeaderAuth.",
+        "width": 320,
+        "height": 150,
+        "color": 6
+      },
+      "id": "wf4-sticky-02",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [900, -50]
+    },
+    {
+      "parameters": {
+        "content": "## Expert Input Form\nWird per Link zugeschickt nach Abschluss\ndes User Insight Mining.\n\n**Form 3** im SEO Content Agent System.",
+        "width": 320,
+        "height": 150,
+        "color": 3
+      },
+      "id": "wf4-sticky-03",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, 700]
+    }
+  ],
+  "connections": {
+    "Start: User Insight Mining": {
+      "main": [
+        [
+          {
+            "node": "Keywords laden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keywords laden": {
+      "main": [
+        [
+          {
+            "node": "Suchbegriffe für Reddit/YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Suchbegriffe für Reddit/YouTube": {
+      "main": [
+        [
+          {
+            "node": "Apify: Reddit Scraping",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Apify: YouTube Scraping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify: Reddit Scraping": {
+      "main": [
+        [
+          {
+            "node": "Warte auf Reddit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warte auf Reddit": {
+      "main": [
+        [
+          {
+            "node": "Apify: Reddit Ergebnisse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify: Reddit Ergebnisse": {
+      "main": [
+        [
+          {
+            "node": "Reddit Insights extrahieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reddit Insights extrahieren": {
+      "main": [
+        [
+          {
+            "node": "Alle Insights zusammenführen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify: YouTube Scraping": {
+      "main": [
+        [
+          {
+            "node": "Warte auf YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warte auf YouTube": {
+      "main": [
+        [
+          {
+            "node": "Apify: YouTube Ergebnisse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify: YouTube Ergebnisse": {
+      "main": [
+        [
+          {
+            "node": "YouTube Insights extrahieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube Insights extrahieren": {
+      "main": [
+        [
+          {
+            "node": "Alle Insights zusammenführen",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Alle Insights zusammenführen": {
+      "main": [
+        [
+          {
+            "node": "Insights speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insights speichern": {
+      "main": [
+        [
+          {
+            "node": "Projekt-Status updaten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Projekt-Status updaten": {
+      "main": [
+        [
+          {
+            "node": "Benachrichtigung: Expert Input Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expert Input Form": {
+      "main": [
+        [
+          {
+            "node": "Expert Input formatieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expert Input formatieren": {
+      "main": [
+        [
+          {
+            "node": "Expert Insights speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expert Insights speichern": {
+      "main": [
+        [
+          {
+            "node": "Voyage AI: Gap Analysis Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voyage AI: Gap Analysis Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Semantische Lücken identifizieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Semantische Lücken identifizieren": {
+      "main": [
+        [
+          {
+            "node": "Lücken-Analyse speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

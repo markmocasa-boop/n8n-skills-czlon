@@ -1,0 +1,568 @@
+{
+  "name": "WF2: Keyword-Auswahl & SERP-Scraping",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Keyword-Auswahl & Priorisierung",
+        "formDescription": "W\u00e4hle die Keywords aus, die f\u00fcr deinen SEO-Artikel priorisiert werden sollen.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "projekt_id",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "keyword_auswahl",
+              "fieldType": "textarea",
+              "requiredField": true,
+              "placeholder": "Keywords kommasepariert eingeben"
+            },
+            {
+              "fieldLabel": "custom_keywords",
+              "fieldType": "textarea",
+              "requiredField": false,
+              "placeholder": "Zus\u00e4tzliche Keywords"
+            },
+            {
+              "fieldLabel": "notizen_suchintention",
+              "fieldType": "textarea",
+              "requiredField": false
+            }
+          ]
+        },
+        "responseMode": "responseNode",
+        "options": {
+          "respondWithText": "Keywords empfangen! SERP-Scraping wird gestartet..."
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Keyword-Auswahl",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst keywords = input['keyword_auswahl'].split(',').map(k => k.trim()).filter(k => k);\nconst customKw = (input['custom_keywords'] || '').split(',').map(k => k.trim()).filter(k => k);\nconst allKeywords = [...new Set([...keywords, ...customKw])];\nreturn allKeywords.map(k => ({ json: { keyword: k, projekt_id: input['projekt_id'] } }));"
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Keywords parsen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Keywords"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "keyword": "={{ $json.keyword }}",
+            "ausgewaehlt": "ja"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "Keywords als ausgew\u00e4hlt markieren",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [600, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.dataforseo.com/v3/serp/google/organic/live",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=[{\"keyword\": \"{{ $json.keyword }}\", \"language_code\": \"de\", \"location_code\": 2276, \"depth\": 5}]",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0004-4000-8000-000000000004",
+      "name": "DataForSEO: SERP Organic",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "",
+          "name": "DataForSEO Basic Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\nconst items = $input.all();\nfor (const item of items) {\n  const keyword = item.json.keyword || '';\n  const serpItems = item.json.tasks?.[0]?.result?.[0]?.items || [];\n  for (const serp of serpItems.slice(0, 5)) {\n    results.push({\n      json: {\n        keyword: keyword,\n        position: serp.rank_group,\n        url: serp.url,\n        title: serp.title,\n        snippet: serp.description || ''\n      }\n    });\n  }\n}\nreturn results;"
+      },
+      "id": "a1b2c3d4-0005-4000-8000-000000000005",
+      "name": "SERP-Ergebnisse extrahieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "SERP_Wettbewerber"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "keyword": "={{ $json.keyword }}",
+            "position": "={{ $json.position }}",
+            "url": "={{ $json.url }}",
+            "title": "={{ $json.title }}",
+            "content_text": "",
+            "wortanzahl": "",
+            "h_struktur": ""
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "a1b2c3d4-0006-4000-8000-000000000006",
+      "name": "SERP-Daten speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1500, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const urls = [...new Set($input.all().map(i => i.json.url))];\nreturn urls.map(url => ({ json: { url } }));"
+      },
+      "id": "a1b2c3d4-0007-4000-8000-000000000007",
+      "name": "Unique URLs extrahieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 3,
+        "options": {}
+      },
+      "id": "a1b2c3d4-0008-4000-8000-000000000008",
+      "name": "URL-Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [2100, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~website-content-crawler/runs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"startUrls\": [{\"url\": \"{{ $json.url }}\"}], \"maxCrawlPages\": 1, \"crawlerType\": \"cheerio\" }",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0009-4000-8000-000000000009",
+      "name": "Apify: Website Scraping starten",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2400, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Apify API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "id": "a1b2c3d4-0010-4000-8000-000000000010",
+      "name": "Warte auf Scraping",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2700, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/datasets/{{ $json.data.defaultDatasetId }}/items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0011-4000-8000-000000000011",
+      "name": "Apify: Ergebnis abrufen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3000, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Apify API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const text = (item.json.text || '').slice(0, 10000);\n  const headings = (item.json.metadata?.headings || []);\n  return {\n    json: {\n      url: item.json.url,\n      content_text: text,\n      wortanzahl: text.split(/\\s+/).length,\n      h_struktur: JSON.stringify(headings)\n    }\n  };\n});"
+      },
+      "id": "a1b2c3d4-0012-4000-8000-000000000012",
+      "name": "Content extrahieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3300, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "SERP_Wettbewerber"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $json.url }}",
+            "content_text": "={{ $json.content_text }}",
+            "wortanzahl": "={{ $json.wortanzahl }}",
+            "h_struktur": "={{ $json.h_struktur }}"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "a1b2c3d4-0013-4000-8000-000000000013",
+      "name": "Content in SERP-Tab updaten",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [3600, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Projekt"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "projekt_id": "={{ $('Keyword-Auswahl').first().json['projekt_id'] }}",
+            "status": "serp_scraping"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "a1b2c3d4-0014-4000-8000-000000000014",
+      "name": "Projekt-Status updaten",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [3900, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst serpData = $('SERP-Ergebnisse extrahieren').all();\nconst contentData = $('Content extrahieren').all();\n\nconst totalKeywords = [...new Set(serpData.map(i => i.json.keyword))].length;\nconst totalUrls = contentData.length;\nconst totalSerpResults = serpData.length;\nconst projektId = $('Keyword-Auswahl').first().json['projekt_id'];\n\nreturn [{\n  json: {\n    projekt_id: projektId,\n    zusammenfassung: `SERP-Scraping abgeschlossen: ${totalKeywords} Keywords analysiert, ${totalSerpResults} SERP-Ergebnisse gefunden, ${totalUrls} URLs gescrapt.`,\n    keywords_analysiert: totalKeywords,\n    serp_ergebnisse: totalSerpResults,\n    urls_gescrapt: totalUrls,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0015-4000-8000-000000000015",
+      "name": "Zusammenfassung",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4200, 300]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#seo-content-agent"
+        },
+        "text": "={{ 'SEO Content Agent - WF2 abgeschlossen\n*Projekt:* ' + $json.projekt_id + '\n' + $json.zusammenfassung + '\n*Keywords:* ' + $json.keywords_analysiert + ' | *SERP-Ergebnisse:* ' + $json.serp_ergebnisse + ' | *URLs gescrapt:* ' + $json.urls_gescrapt }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "a1b2c3d4-0016-4000-8000-000000000016",
+      "name": "Benachrichtigung senden",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [4500, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-api-credential",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF2: Keyword-Auswahl & SERP-Scraping\n\nDieser Workflow empf\u00e4ngt die ausgew\u00e4hlten Keywords aus WF1, f\u00fchrt SERP-Scraping \u00fcber DataForSEO durch und scrapt die Top-Ergebnisse mit Apify.\n\n**Ablauf:**\n1. Keywords empfangen & parsen\n2. Keywords in Google Sheets als ausgew\u00e4hlt markieren\n3. SERP-Daten \u00fcber DataForSEO abrufen\n4. Top-URLs mit Apify scrapen\n5. Ergebnisse in Google Sheets speichern\n6. Benachrichtigung senden",
+        "width": 500,
+        "height": 300
+      },
+      "id": "a1b2c3d4-0017-4000-8000-000000000017",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-200, -150]
+    },
+    {
+      "parameters": {
+        "content": "## Apify Actor: website-content-crawler\n\nVerwendet den Apify Actor `apify~website-content-crawler` zum Scrapen der Wettbewerber-URLs.\n\n- **crawlerType:** cheerio (schnell, kein JS-Rendering)\n- **maxCrawlPages:** 1 (nur die Ziel-URL)\n- **Batch-Gr\u00f6\u00dfe:** 3 URLs gleichzeitig\n- **Wartezeit:** 15 Sekunden pro Batch",
+        "width": 400,
+        "height": 250
+      },
+      "id": "a1b2c3d4-0018-4000-8000-000000000018",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [2100, -100]
+    },
+    {
+      "parameters": {
+        "content": "## DataForSEO SERP API\n\nVerwendet die DataForSEO Live SERP API f\u00fcr organische Suchergebnisse.\n\n- **Endpunkt:** /v3/serp/google/organic/live\n- **Sprache:** de (Deutsch)\n- **Standort:** 2276 (Deutschland)\n- **Tiefe:** Top 5 Ergebnisse\n- **Auth:** HTTP Basic Auth",
+        "width": 400,
+        "height": 250
+      },
+      "id": "a1b2c3d4-0019-4000-8000-000000000019",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [700, -100]
+    }
+  ],
+  "connections": {
+    "Keyword-Auswahl": {
+      "main": [
+        [
+          {
+            "node": "Keywords parsen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keywords parsen": {
+      "main": [
+        [
+          {
+            "node": "Keywords als ausgew\u00e4hlt markieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keywords als ausgew\u00e4hlt markieren": {
+      "main": [
+        [
+          {
+            "node": "DataForSEO: SERP Organic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DataForSEO: SERP Organic": {
+      "main": [
+        [
+          {
+            "node": "SERP-Ergebnisse extrahieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SERP-Ergebnisse extrahieren": {
+      "main": [
+        [
+          {
+            "node": "SERP-Daten speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SERP-Daten speichern": {
+      "main": [
+        [
+          {
+            "node": "Unique URLs extrahieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unique URLs extrahieren": {
+      "main": [
+        [
+          {
+            "node": "URL-Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "URL-Batches": {
+      "main": [
+        [
+          {
+            "node": "Apify: Website Scraping starten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify: Website Scraping starten": {
+      "main": [
+        [
+          {
+            "node": "Warte auf Scraping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warte auf Scraping": {
+      "main": [
+        [
+          {
+            "node": "Apify: Ergebnis abrufen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify: Ergebnis abrufen": {
+      "main": [
+        [
+          {
+            "node": "Content extrahieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content extrahieren": {
+      "main": [
+        [
+          {
+            "node": "Content in SERP-Tab updaten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content in SERP-Tab updaten": {
+      "main": [
+        [
+          {
+            "node": "Projekt-Status updaten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Projekt-Status updaten": {
+      "main": [
+        [
+          {
+            "node": "Zusammenfassung",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zusammenfassung": {
+      "main": [
+        [
+          {
+            "node": "Benachrichtigung senden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

@@ -1,0 +1,749 @@
+{
+  "name": "WF8: Finalisierung & Export",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "wf8-trigger",
+      "name": "Start: Finalisierung",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Content_Draft"
+        }
+      },
+      "id": "wf8-sheets-draft",
+      "name": "Content Draft laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Meta_und_Links"
+        }
+      },
+      "id": "wf8-sheets-meta",
+      "name": "Meta & Links laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "QA_Ergebnisse"
+        }
+      },
+      "id": "wf8-sheets-qa",
+      "name": "QA-Ergebnisse laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 600],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Projekt"
+        }
+      },
+      "id": "wf8-sheets-projekt",
+      "name": "Projekt-Daten laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 800],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const drafts = $('Content Draft laden').all().map(i => i.json);\nconst meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst titleSuggestion = meta.find(m => m.typ === 'title_tag')?.vorschlag || projekt.thema;\n\nlet markdown = `# ${titleSuggestion}\\n\\n`;\nfor (const draft of drafts) {\n  const content = draft.content_humanized || draft.content_raw;\n  markdown += content + '\\n\\n';\n}\n\n// Add internal link suggestions as comments\nconst links = meta.filter(m => m.typ?.includes('link'));\nif (links.length > 0) {\n  markdown += '\\n\\n---\\n## Interne Link-Vorschläge\\n\\n';\n  for (const link of links) {\n    markdown += `- ${link.vorschlag} → ${link.ziel_url || ''}\\n`;\n  }\n}\n\nconst binaryData = Buffer.from(markdown, 'utf-8').toString('base64');\nreturn [{\n  json: { markdown, filename: 'artikel.md' },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: 'text/markdown',\n      fileName: 'artikel.md'\n    }\n  }\n}];"
+      },
+      "id": "wf8-code-markdown",
+      "name": "Markdown-Artikel erstellen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const drafts = $('Content Draft laden').all().map(i => i.json);\nconst meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst title = meta.find(m => m.typ === 'title_tag')?.vorschlag || projekt.thema;\nconst metaDesc = meta.find(m => m.typ === 'meta_description')?.vorschlag || '';\n\nlet body = '';\nfor (const draft of drafts) {\n  const content = draft.content_humanized || draft.content_raw;\n  // Basic markdown to HTML conversion\n  const html = content\n    .replace(/^### (.*$)/gm, '<h3>$1</h3>')\n    .replace(/^## (.*$)/gm, '<h2>$1</h2>')\n    .replace(/^# (.*$)/gm, '<h1>$1</h1>')\n    .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')\n    .replace(/\\*(.*?)\\*/g, '<em>$1</em>')\n    .replace(/\\n\\n/g, '</p><p>')\n    .replace(/^(.+)$/gm, '<p>$1</p>');\n  body += html + '\\n';\n}\n\nconst htmlDoc = `<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>${title}</title>\n  <meta name=\"description\" content=\"${metaDesc}\">\n</head>\n<body>\n  <article>\n    ${body}\n  </article>\n</body>\n</html>`;\n\nconst binaryData = Buffer.from(htmlDoc, 'utf-8').toString('base64');\nreturn [{\n  json: { html: htmlDoc, filename: 'artikel.html' },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: 'text/html',\n      fileName: 'artikel.html'\n    }\n  }\n}];"
+      },
+      "id": "wf8-code-html",
+      "name": "HTML-Artikel erstellen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 550]
+    },
+    {
+      "parameters": {
+        "jsCode": "const qa = $('QA-Ergebnisse laden').all().map(i => i.json);\nconst meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nlet bericht = `# Analyse-Bericht: ${projekt.thema}\\n\\n`;\nbericht += `**Projekt-ID:** ${projekt.projekt_id}\\n`;\nbericht += `**Erstellt:** ${projekt.erstellt_am}\\n\\n`;\n\nbericht += '## QA-Ergebnisse\\n\\n';\nfor (const q of qa) {\n  const icon = q.status === 'bestanden' ? '✅' : '⚠️';\n  bericht += `${icon} **${q.check_typ}**: ${q.details} (Score: ${q.score})\\n`;\n}\n\nbericht += '\\n## Meta-Vorschläge\\n\\n';\nconst titles = meta.filter(m => m.typ === 'title_tag');\nconst descs = meta.filter(m => m.typ === 'meta_description');\nbericht += '### Title Tags\\n';\ntitles.forEach((t, i) => { bericht += `${i+1}. ${t.vorschlag}\\n`; });\nbericht += '\\n### Meta Descriptions\\n';\ndescs.forEach((d, i) => { bericht += `${i+1}. ${d.vorschlag}\\n`; });\n\nbericht += '\\n## Bild-Ideen & Midjourney-Prompts\\n\\n';\nconst visuals = meta.filter(m => m.typ === 'bild_idee' || m.typ === 'midjourney_prompt');\nvisuals.forEach(v => { bericht += `- **${v.typ}**: ${v.vorschlag}\\n`; });\n\nbericht += '\\n## Link-Strategie\\n\\n';\nconst links = meta.filter(m => m.typ?.includes('link'));\nlinks.forEach(l => { bericht += `- ${l.vorschlag} → ${l.ziel_url || 'N/A'}\\n`; });\n\nconst binaryData = Buffer.from(bericht, 'utf-8').toString('base64');\nreturn [{\n  json: { bericht, filename: 'analyse-bericht.md' },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: 'text/markdown',\n      fileName: 'analyse-bericht.md'\n    }\n  }\n}];"
+      },
+      "id": "wf8-code-bericht",
+      "name": "Analyse-Bericht erstellen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 800]
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst titles = meta.filter(m => m.typ === 'title_tag');\nconst descs = meta.filter(m => m.typ === 'meta_description');\n\nlet content = `# Meta-Vorschläge: ${projekt.thema}\\n\\n`;\n\ncontent += '## Title Tag Vorschläge\\n\\n';\ntitles.forEach((t, i) => {\n  content += `### Option ${i + 1}\\n`;\n  content += `- **Vorschlag:** ${t.vorschlag}\\n`;\n  content += `- **Zeichenlänge:** ${t.vorschlag?.length || 0}\\n\\n`;\n});\n\ncontent += '## Meta Description Vorschläge\\n\\n';\ndescs.forEach((d, i) => {\n  content += `### Option ${i + 1}\\n`;\n  content += `- **Vorschlag:** ${d.vorschlag}\\n`;\n  content += `- **Zeichenlänge:** ${d.vorschlag?.length || 0}\\n\\n`;\n});\n\nconst binaryData = Buffer.from(content, 'utf-8').toString('base64');\nreturn [{\n  json: { content, filename: 'meta-vorschlaege.md' },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: 'text/markdown',\n      fileName: 'meta-vorschlaege.md'\n    }\n  }\n}];"
+      },
+      "id": "wf8-code-meta",
+      "name": "Meta-Vorschläge Datei",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 1000]
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst internalLinks = meta.filter(m => m.typ === 'interner_link');\nconst externalLinks = meta.filter(m => m.typ === 'externer_link');\nconst allLinks = meta.filter(m => m.typ?.includes('link'));\n\nlet content = `# Link-Strategie: ${projekt.thema}\\n\\n`;\n\ncontent += '## Interne Verlinkung\\n\\n';\nif (internalLinks.length > 0) {\n  internalLinks.forEach((l, i) => {\n    content += `${i + 1}. **${l.vorschlag}**\\n`;\n    content += `   - Ziel-URL: ${l.ziel_url || 'N/A'}\\n`;\n    content += `   - Ankertext-Vorschlag: ${l.ankertext || l.vorschlag}\\n\\n`;\n  });\n} else {\n  allLinks.forEach((l, i) => {\n    content += `${i + 1}. **${l.vorschlag}**\\n`;\n    content += `   - Ziel-URL: ${l.ziel_url || 'N/A'}\\n\\n`;\n  });\n}\n\ncontent += '## Externe Verlinkung\\n\\n';\nif (externalLinks.length > 0) {\n  externalLinks.forEach((l, i) => {\n    content += `${i + 1}. **${l.vorschlag}**\\n`;\n    content += `   - Ziel-URL: ${l.ziel_url || 'N/A'}\\n\\n`;\n  });\n} else {\n  content += '_Keine externen Links vorgeschlagen._\\n';\n}\n\nconst binaryData = Buffer.from(content, 'utf-8').toString('base64');\nreturn [{\n  json: { content, filename: 'link-strategie.md' },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: 'text/markdown',\n      fileName: 'link-strategie.md'\n    }\n  }\n}];"
+      },
+      "id": "wf8-code-links",
+      "name": "Link-Strategie Datei",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 1150]
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst bildIdeen = meta.filter(m => m.typ === 'bild_idee');\nconst mjPrompts = meta.filter(m => m.typ === 'midjourney_prompt');\n\nlet content = `# Visual-Plan: ${projekt.thema}\\n\\n`;\n\ncontent += '## Bild-Ideen\\n\\n';\nif (bildIdeen.length > 0) {\n  bildIdeen.forEach((b, i) => {\n    content += `### Bild ${i + 1}\\n`;\n    content += `- **Beschreibung:** ${b.vorschlag}\\n`;\n    content += `- **Position im Artikel:** ${b.position || 'N/A'}\\n\\n`;\n  });\n} else {\n  content += '_Keine Bild-Ideen vorhanden._\\n\\n';\n}\n\ncontent += '## Midjourney Prompts\\n\\n';\nif (mjPrompts.length > 0) {\n  mjPrompts.forEach((p, i) => {\n    content += `### Prompt ${i + 1}\\n`;\n    content += '```\\n';\n    content += `${p.vorschlag}\\n`;\n    content += '```\\n\\n';\n  });\n} else {\n  content += '_Keine Midjourney-Prompts vorhanden._\\n\\n';\n}\n\ncontent += '## Verwendungshinweise\\n\\n';\ncontent += '- Alle Bilder sollten mit passendem Alt-Text versehen werden\\n';\ncontent += '- Bildformat: WebP bevorzugt, max. 200KB\\n';\ncontent += '- Midjourney-Parameter: --ar 16:9 --v 6 empfohlen\\n';\n\nconst binaryData = Buffer.from(content, 'utf-8').toString('base64');\nreturn [{\n  json: { content, filename: 'visual-plan.md' },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: 'text/markdown',\n      fileName: 'visual-plan.md'\n    }\n  }\n}];"
+      },
+      "id": "wf8-code-visuals",
+      "name": "Visual-Plan Datei",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 1300]
+    },
+    {
+      "parameters": {
+        "operation": "createFolder",
+        "name": "={{ $('Projekt-Daten laden').first().json.projekt_id }}",
+        "options": {
+          "folderColorRgb": "",
+          "simplifyOutput": true
+        }
+      },
+      "id": "wf8-drive-folder",
+      "name": "Google Drive: Ordner erstellen",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1000, 300],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "artikel.md",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive: Ordner erstellen').first().json.id }}"
+        },
+        "options": {}
+      },
+      "id": "wf8-drive-md",
+      "name": "Google Drive: MD hochladen",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1350, 200],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "artikel.html",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive: Ordner erstellen').first().json.id }}"
+        },
+        "options": {}
+      },
+      "id": "wf8-drive-html",
+      "name": "Google Drive: HTML hochladen",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1350, 400],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "analyse-bericht.md",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive: Ordner erstellen').first().json.id }}"
+        },
+        "options": {}
+      },
+      "id": "wf8-drive-bericht",
+      "name": "Google Drive: Bericht hochladen",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1350, 600],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "meta-vorschlaege.md",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive: Ordner erstellen').first().json.id }}"
+        },
+        "options": {}
+      },
+      "id": "wf8-drive-meta",
+      "name": "Google Drive: Meta hochladen",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1350, 800],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "link-strategie.md",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive: Ordner erstellen').first().json.id }}"
+        },
+        "options": {}
+      },
+      "id": "wf8-drive-links",
+      "name": "Google Drive: Links hochladen",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1350, 1000],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "visual-plan.md",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive: Ordner erstellen').first().json.id }}"
+        },
+        "options": {}
+      },
+      "id": "wf8-drive-visuals",
+      "name": "Google Drive: Visuals hochladen",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1350, 1200],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Projekt"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "finalisiert",
+            "google_drive_ordner_url": "={{ 'https://drive.google.com/drive/folders/' + $('Google Drive: Ordner erstellen').first().json.id }}"
+          }
+        }
+      },
+      "id": "wf8-sheets-status",
+      "name": "Projekt-Status: Fertig",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1700, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#seo-content-agent"
+        },
+        "text": "={{ 'SEO Content Agent Projekt abgeschlossen!\\n\\nGoogle Drive Ordner: https://drive.google.com/drive/folders/' + $('Google Drive: Ordner erstellen').first().json.id + '\\n\\nQA-Zusammenfassung:\\n' + $('QA-Ergebnisse laden').all().map(q => q.json).map(q => (q.status === 'bestanden' ? 'OK' : 'WARNUNG') + ' ' + q.check_typ + ': ' + q.score).join('\\n') }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "wf8-notification",
+      "name": "Benachrichtigung: Projekt fertig",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2000, 500],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-api-credential",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF8: Finalisierung & Export\n**MD + HTML + Berichte → Google Drive**\n\nDieser Workflow erstellt alle finalen Dateien und lädt sie in einen projektspezifischen Google Drive Ordner hoch.",
+        "width": 600,
+        "height": 120
+      },
+      "id": "wf8-sticky-1",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-50, 50]
+    },
+    {
+      "parameters": {
+        "content": "### Google Drive Upload\nAlle Dateien werden in projektspezifischen Ordner hochgeladen:\n- artikel.md\n- artikel.html\n- analyse-bericht.md\n- meta-vorschlaege.md\n- link-strategie.md\n- visual-plan.md",
+        "width": 350,
+        "height": 200
+      },
+      "id": "wf8-sticky-2",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1100, 50]
+    }
+  ],
+  "connections": {
+    "Start: Finalisierung": {
+      "main": [
+        [
+          {
+            "node": "Content Draft laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Meta & Links laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "QA-Ergebnisse laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Projekt-Daten laden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content Draft laden": {
+      "main": [
+        [
+          {
+            "node": "Markdown-Artikel erstellen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTML-Artikel erstellen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Analyse-Bericht erstellen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Meta-Vorschläge Datei",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Link-Strategie Datei",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Visual-Plan Datei",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta & Links laden": {
+      "main": [
+        [
+          {
+            "node": "Markdown-Artikel erstellen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTML-Artikel erstellen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Analyse-Bericht erstellen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Meta-Vorschläge Datei",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Link-Strategie Datei",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Visual-Plan Datei",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QA-Ergebnisse laden": {
+      "main": [
+        [
+          {
+            "node": "Analyse-Bericht erstellen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Projekt-Daten laden": {
+      "main": [
+        [
+          {
+            "node": "Markdown-Artikel erstellen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTML-Artikel erstellen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Analyse-Bericht erstellen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Meta-Vorschläge Datei",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Link-Strategie Datei",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Visual-Plan Datei",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Markdown-Artikel erstellen": {
+      "main": [
+        [
+          {
+            "node": "Google Drive: Ordner erstellen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML-Artikel erstellen": {
+      "main": [
+        [
+          {
+            "node": "Google Drive: Ordner erstellen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyse-Bericht erstellen": {
+      "main": [
+        [
+          {
+            "node": "Google Drive: Ordner erstellen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta-Vorschläge Datei": {
+      "main": [
+        [
+          {
+            "node": "Google Drive: Ordner erstellen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Link-Strategie Datei": {
+      "main": [
+        [
+          {
+            "node": "Google Drive: Ordner erstellen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Visual-Plan Datei": {
+      "main": [
+        [
+          {
+            "node": "Google Drive: Ordner erstellen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive: Ordner erstellen": {
+      "main": [
+        [
+          {
+            "node": "Google Drive: MD hochladen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Drive: HTML hochladen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Drive: Bericht hochladen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Drive: Meta hochladen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Drive: Links hochladen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Drive: Visuals hochladen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive: MD hochladen": {
+      "main": [
+        [
+          {
+            "node": "Projekt-Status: Fertig",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive: HTML hochladen": {
+      "main": [
+        [
+          {
+            "node": "Projekt-Status: Fertig",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive: Bericht hochladen": {
+      "main": [
+        [
+          {
+            "node": "Projekt-Status: Fertig",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive: Meta hochladen": {
+      "main": [
+        [
+          {
+            "node": "Projekt-Status: Fertig",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive: Links hochladen": {
+      "main": [
+        [
+          {
+            "node": "Projekt-Status: Fertig",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive: Visuals hochladen": {
+      "main": [
+        [
+          {
+            "node": "Projekt-Status: Fertig",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Projekt-Status: Fertig": {
+      "main": [
+        [
+          {
+            "node": "Benachrichtigung: Projekt fertig",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
