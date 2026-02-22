@@ -1,0 +1,434 @@
+{
+  "name": "WF1: Projekt-Setup & Keyword-Recherche",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Projekt-Start",
+        "formDescription": "Starte ein neues SEO Content Agent Projekt. Gib das Thema und die gewuenschten Einstellungen ein.",
+        "responseMode": "responseNode",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Thema/Titel",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": "z.B. Beste Kaffeemaschinen 2026"
+            },
+            {
+              "fieldLabel": "Zielsprache",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  { "option": "DE" },
+                  { "option": "EN" }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Ziel-URL-Slug",
+              "fieldType": "text",
+              "requiredField": false,
+              "placeholder": "z.B. beste-kaffeemaschinen"
+            },
+            {
+              "fieldLabel": "Notizen",
+              "fieldType": "textarea",
+              "requiredField": false,
+              "placeholder": "Optionale Hinweise zum Projekt..."
+            }
+          ]
+        },
+        "options": {
+          "respondWithData": false,
+          "formSubmittedText": "Danke! Dein SEO Content Agent Projekt wird gestartet..."
+        }
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000001",
+      "name": "Projekt-Start",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.1,
+      "position": [0, 300],
+      "webhookId": "wf1-projekt-start"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst dateStr = now.toISOString().slice(0,10);\nconst thema = $input.first().json['Thema/Titel'] || 'projekt';\nconst slug = thema.toLowerCase().replace(/[^a-z0-9äöüß]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);\nconst projektId = `${dateStr}_${slug}`;\n\nreturn [{ json: { \n  projekt_id: projektId, \n  thema: $input.first().json['Thema/Titel'],\n  zielsprache: $input.first().json['Zielsprache'] || 'DE',\n  ziel_url_slug: $input.first().json['Ziel-URL-Slug'] || '',\n  notizen: $input.first().json['Notizen'] || '',\n  erstellt_am: now.toISOString(),\n  status: 'keyword_recherche'\n}}];"
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000002",
+      "name": "Projekt-ID generieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { title: 'SEO-Projekt: ' + $json.thema + ' (' + $json.projekt_id + ')' }, sheets: [ { properties: { title: 'Projekt', index: 0 } }, { properties: { title: 'Keywords', index: 1 } }, { properties: { title: 'SERP_Wettbewerber', index: 2 } }, { properties: { title: 'Semantische_Analyse', index: 3 } }, { properties: { title: 'User_Insights', index: 4 } }, { properties: { title: 'Gliederung', index: 5 } }, { properties: { title: 'Content_Draft', index: 6 } }, { properties: { title: 'QA_Ergebnisse', index: 7 } }, { properties: { title: 'Meta_und_Links', index: 8 } } ] }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000003",
+      "name": "Spreadsheet erstellen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-oauth2",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ 'https://docs.google.com/spreadsheets/d/' + $('Spreadsheet erstellen').first().json.spreadsheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Projekt"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "projekt_id": "={{ $('Projekt-ID generieren').first().json.projekt_id }}",
+            "thema": "={{ $('Projekt-ID generieren').first().json.thema }}",
+            "zielsprache": "={{ $('Projekt-ID generieren').first().json.zielsprache }}",
+            "ziel_url_slug": "={{ $('Projekt-ID generieren').first().json.ziel_url_slug }}",
+            "notizen": "={{ $('Projekt-ID generieren').first().json.notizen }}",
+            "status": "={{ $('Projekt-ID generieren').first().json.status }}",
+            "erstellt_am": "={{ $('Projekt-ID generieren').first().json.erstellt_am }}",
+            "zuletzt_aktualisiert": "={{ new Date().toISOString() }}",
+            "spreadsheet_id": "={{ $('Spreadsheet erstellen').first().json.spreadsheetId }}",
+            "spreadsheet_url": "={{ $('Spreadsheet erstellen').first().json.spreadsheetUrl }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000004",
+      "name": "Projekt-Tab schreiben",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [900, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-oauth2",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.dataforseo.com/v3/keywords_data/google_ads/keywords_for_keywords/live",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([{ keywords: [$('Projekt-ID generieren').first().json.thema], language_code: $('Projekt-ID generieren').first().json.zielsprache === 'DE' ? 'de' : 'en', location_code: $('Projekt-ID generieren').first().json.zielsprache === 'DE' ? 2276 : 2840, sort_by: 'search_volume' }]) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000005",
+      "name": "DataForSEO: Matching Keywords",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 200],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "dataforseo-basic-auth",
+          "name": "DataForSEO Basic Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.dataforseo.com/v3/keywords_data/google_ads/keyword_suggestions/live",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify([{ keyword: $('Projekt-ID generieren').first().json.thema, language_code: $('Projekt-ID generieren').first().json.zielsprache === 'DE' ? 'de' : 'en', location_code: $('Projekt-ID generieren').first().json.zielsprache === 'DE' ? 2276 : 2840, sort_by: 'search_volume', limit: 50 }]) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000006",
+      "name": "DataForSEO: Related Keywords",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 400],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "dataforseo-basic-auth",
+          "name": "DataForSEO Basic Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Matching Keywords verarbeiten\nconst matchingRaw = $('DataForSEO: Matching Keywords').first().json;\nconst relatedRaw = $('DataForSEO: Related Keywords').first().json;\n\nconst keywords = new Map();\n\n// Matching Keywords extrahieren\ntry {\n  const matchingResults = matchingRaw?.tasks?.[0]?.result || [];\n  for (const item of matchingResults) {\n    if (item.keyword && !keywords.has(item.keyword.toLowerCase())) {\n      keywords.set(item.keyword.toLowerCase(), {\n        keyword: item.keyword,\n        typ: 'matching',\n        suchvolumen: item.search_volume || 0,\n        schwierigkeit: item.keyword_info?.keyword_difficulty || item.competition_index || 0,\n        wettbewerb: item.competition || '',\n        suchintention: item.search_intent_info?.main_intent || '',\n        cpc: item.cpc || 0,\n        prioritaet: '',\n        ausgewaehlt: 'nein'\n      });\n    }\n  }\n} catch(e) { /* skip matching errors */ }\n\n// Related Keywords extrahieren\ntry {\n  const relatedResults = relatedRaw?.tasks?.[0]?.result || [];\n  for (const item of relatedResults) {\n    if (item.keyword && !keywords.has(item.keyword.toLowerCase())) {\n      keywords.set(item.keyword.toLowerCase(), {\n        keyword: item.keyword,\n        typ: 'related',\n        suchvolumen: item.search_volume || 0,\n        schwierigkeit: item.keyword_info?.keyword_difficulty || item.competition_index || 0,\n        wettbewerb: item.competition || '',\n        suchintention: item.search_intent_info?.main_intent || '',\n        cpc: item.cpc || 0,\n        prioritaet: '',\n        ausgewaehlt: 'nein'\n      });\n    }\n  }\n} catch(e) { /* skip related errors */ }\n\n// Sortieren nach Suchvolumen (absteigend)\nconst sorted = Array.from(keywords.values()).sort((a, b) => b.suchvolumen - a.suchvolumen);\n\n// Falls keine Keywords gefunden, Fallback\nif (sorted.length === 0) {\n  return [{ json: {\n    keyword: $('Projekt-ID generieren').first().json.thema,\n    typ: 'seed',\n    suchvolumen: 0,\n    schwierigkeit: 0,\n    wettbewerb: '',\n    suchintention: '',\n    cpc: 0,\n    prioritaet: 'hoch',\n    ausgewaehlt: 'ja'\n  }}];\n}\n\nreturn sorted.map(kw => ({ json: kw }));"
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000007",
+      "name": "Keywords zusammenführen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ 'https://docs.google.com/spreadsheets/d/' + $('Spreadsheet erstellen').first().json.spreadsheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Keywords"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "keyword": "={{ $json.keyword }}",
+            "typ": "={{ $json.typ }}",
+            "suchvolumen": "={{ $json.suchvolumen }}",
+            "schwierigkeit": "={{ $json.schwierigkeit }}",
+            "wettbewerb": "={{ $json.wettbewerb }}",
+            "suchintention": "={{ $json.suchintention }}",
+            "cpc": "={{ $json.cpc }}",
+            "prioritaet": "={{ $json.prioritaet }}",
+            "ausgewaehlt": "={{ $json.ausgewaehlt }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000008",
+      "name": "Keywords speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1800, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-oauth2",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst projektId = $('Projekt-ID generieren').first().json.projekt_id;\nconst thema = $('Projekt-ID generieren').first().json.thema;\nconst spreadsheetUrl = $('Spreadsheet erstellen').first().json.spreadsheetUrl || '';\n\nconst totalKeywords = items.length;\nconst matchingCount = items.filter(i => i.json.typ === 'matching').length;\nconst relatedCount = items.filter(i => i.json.typ === 'related').length;\n\n// Top 5 Keywords nach Suchvolumen\nconst top5 = items\n  .sort((a, b) => (b.json.suchvolumen || 0) - (a.json.suchvolumen || 0))\n  .slice(0, 5)\n  .map(i => `  - ${i.json.keyword} (Vol: ${i.json.suchvolumen}, Diff: ${i.json.schwierigkeit})`)\n  .join('\\n');\n\nconst zusammenfassung = `SEO Content Agent - Keyword-Recherche abgeschlossen\\n\\nProjekt: ${thema}\\nProjekt-ID: ${projektId}\\n\\nErgebnis:\\n- ${totalKeywords} Keywords gefunden\\n- ${matchingCount} Matching Keywords\\n- ${relatedCount} Related Keywords\\n\\nTop 5 Keywords:\\n${top5}\\n\\nSpreadsheet: ${spreadsheetUrl}\\n\\nNaechster Schritt: WF2 - SERP-Analyse & Wettbewerberanalyse starten`;\n\nreturn [{ json: {\n  projekt_id: projektId,\n  thema: thema,\n  total_keywords: totalKeywords,\n  matching_count: matchingCount,\n  related_count: relatedCount,\n  spreadsheet_url: spreadsheetUrl,\n  zusammenfassung: zusammenfassung,\n  status: 'keyword_recherche_abgeschlossen'\n}}];"
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000009",
+      "name": "Zusammenfassung erstellen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2100, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NOTIFICATION_WEBHOOK_URL || 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.zusammenfassung, blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '*SEO Content Agent - Keyword-Recherche abgeschlossen*' }}, { type: 'section', text: { type: 'mrkdwn', text: '*Projekt:* ' + $json.thema + '\\n*Projekt-ID:* ' + $json.projekt_id + '\\n*Keywords gefunden:* ' + $json.total_keywords + ' (' + $json.matching_count + ' matching, ' + $json.related_count + ' related)' }}, { type: 'section', text: { type: 'mrkdwn', text: '<' + $json.spreadsheet_url + '|Spreadsheet oeffnen>' }}, { type: 'divider' }, { type: 'section', text: { type: 'mrkdwn', text: '_Naechster Schritt: WF2 - SERP-Analyse & Wettbewerberanalyse_' }}] }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000010",
+      "name": "Benachrichtigung senden",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2400, 300]
+    },
+    {
+      "parameters": {
+        "content": "## WF1: Projekt-Setup & Keyword-Recherche\n\nStartet den SEO Content Agent Prozess.\n\n**Ablauf:**\n1. Formular-Eingabe (Thema, Sprache, etc.)\n2. Projekt-ID generieren\n3. Google Spreadsheet mit allen Tabs erstellen\n4. Keyword-Recherche via DataForSEO\n5. Keywords speichern & Benachrichtigung\n\n**Naechster Workflow:** WF2 - SERP-Analyse & Wettbewerberanalyse",
+        "width": 500,
+        "height": 220,
+        "color": 4
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000011",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "content": "## DataForSEO API\n\n**Credentials erforderlich:** Basic Auth\n- Login: DataForSEO API Login\n- Password: DataForSEO API Password\n\nDokumentation:\nhttps://docs.dataforseo.com/v3/keywords_data/google_ads/",
+        "width": 350,
+        "height": 180,
+        "color": 6
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000012",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "content": "## Google Sheets\n\n**Credentials erforderlich:** Google Sheets OAuth2\n- OAuth2 Client ID & Secret\n- Scopes: spreadsheets (read/write)\n\nErstellt ein Spreadsheet mit 9 Tabs fuer den gesamten SEO-Prozess.",
+        "width": 350,
+        "height": 180,
+        "color": 3
+      },
+      "id": "a1b2c3d4-1001-4000-8000-000000000013",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [600, 0]
+    }
+  ],
+  "connections": {
+    "Projekt-Start": {
+      "main": [
+        [
+          {
+            "node": "Projekt-ID generieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Projekt-ID generieren": {
+      "main": [
+        [
+          {
+            "node": "Spreadsheet erstellen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Spreadsheet erstellen": {
+      "main": [
+        [
+          {
+            "node": "Projekt-Tab schreiben",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Projekt-Tab schreiben": {
+      "main": [
+        [
+          {
+            "node": "DataForSEO: Matching Keywords",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "DataForSEO: Related Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DataForSEO: Matching Keywords": {
+      "main": [
+        [
+          {
+            "node": "Keywords zusammenführen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DataForSEO: Related Keywords": {
+      "main": [
+        [
+          {
+            "node": "Keywords zusammenführen",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Keywords zusammenführen": {
+      "main": [
+        [
+          {
+            "node": "Keywords speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keywords speichern": {
+      "main": [
+        [
+          {
+            "node": "Zusammenfassung erstellen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zusammenfassung erstellen": {
+      "main": [
+        [
+          {
+            "node": "Benachrichtigung senden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "wf1-v1.0.0",
+  "tags": [
+    {
+      "name": "SEO Content Agent"
+    },
+    {
+      "name": "WF1"
+    },
+    {
+      "name": "Keyword-Recherche"
+    }
+  ],
+  "pinData": {},
+  "id": "wf1-projekt-setup-keyword-recherche",
+  "meta": {
+    "instanceId": "seo-content-agent-system"
+  }
+}

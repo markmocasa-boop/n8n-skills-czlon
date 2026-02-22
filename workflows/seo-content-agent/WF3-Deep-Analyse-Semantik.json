@@ -1,0 +1,513 @@
+{
+  "name": "WF3: Deep Analyse (Semantik)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "wf3-trigger-001",
+      "name": "Start: Deep Analyse",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Keywords"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "ausgewaehlt",
+              "lookupValue": "ja"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf3-sheets-002",
+      "name": "Keywords laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "SERP_Wettbewerber"
+        },
+        "options": {}
+      },
+      "id": "wf3-sheets-003",
+      "name": "SERP-Content laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 550],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const keywords = $('Keywords laden').all().map(i => i.json.keyword);\nconst serpContent = $('SERP-Content laden').all().map(i => ({\n  url: i.json.url,\n  keyword: i.json.keyword,\n  text: (i.json.content_text || '').slice(0, 8000)\n}));\n\n// Create query texts from keywords\nconst queries = keywords.map(k => `Suchintention: ${k}`);\n\n// Create document texts from SERP content (chunked if needed)\nconst documents = serpContent.map(s => s.text);\n\nreturn [{\n  json: {\n    queries,\n    documents,\n    keywords,\n    serpContent\n  }\n}];"
+      },
+      "id": "wf3-code-004",
+      "name": "Embedding-Inputs vorbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.voyageai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{voyageApiKey}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"input\": {{ JSON.stringify($json.queries) }},\n  \"model\": \"voyage-3-lite\",\n  \"input_type\": \"query\"\n}",
+        "options": {}
+      },
+      "id": "wf3-http-005",
+      "name": "Voyage AI: Query Embeddings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.voyageai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{voyageApiKey}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"input\": {{ JSON.stringify($json.documents) }},\n  \"model\": \"voyage-3-lite\",\n  \"input_type\": \"document\"\n}",
+        "options": {}
+      },
+      "id": "wf3-http-006",
+      "name": "Voyage AI: Document Embeddings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Cosine similarity calculation\nfunction cosineSimilarity(a, b) {\n  let dotProduct = 0, normA = 0, normB = 0;\n  for (let i = 0; i < a.length; i++) {\n    dotProduct += a[i] * b[i];\n    normA += a[i] * a[i];\n    normB += b[i] * b[i];\n  }\n  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));\n}\n\nconst queryEmbeddings = $('Voyage AI: Query Embeddings').first().json.data.map(d => d.embedding);\nconst docEmbeddings = $('Voyage AI: Document Embeddings').first().json.data.map(d => d.embedding);\nconst prepData = $('Embedding-Inputs vorbereiten').first().json;\nconst keywords = prepData.keywords;\nconst serpContent = prepData.serpContent;\n\nconst alignmentMatrix = [];\nfor (let q = 0; q < queryEmbeddings.length; q++) {\n  for (let d = 0; d < docEmbeddings.length; d++) {\n    const score = cosineSimilarity(queryEmbeddings[q], docEmbeddings[d]);\n    alignmentMatrix.push({\n      json: {\n        analyse_typ: 'query_alignment',\n        keyword_oder_thema: keywords[q],\n        url: serpContent[d]?.url || '',\n        score: Math.round(score * 1000) / 1000,\n        details: `Alignment zwischen \"${keywords[q]}\" und ${serpContent[d]?.url}`,\n        kategorie: score > 0.7 ? 'pflicht' : score > 0.4 ? 'differenzierung' : 'luecke'\n      }\n    });\n  }\n}\nreturn alignmentMatrix;"
+      },
+      "id": "wf3-code-007",
+      "name": "Query Alignment Matrix berechnen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n// Group by keyword and calculate average relevance\nconst keywordScores = {};\nfor (const item of items) {\n  const kw = item.json.keyword_oder_thema;\n  if (!keywordScores[kw]) keywordScores[kw] = { scores: [], urls: [] };\n  keywordScores[kw].scores.push(item.json.score);\n  keywordScores[kw].urls.push(item.json.url);\n}\n\nconst rankings = Object.entries(keywordScores).map(([kw, data]) => {\n  const avgScore = data.scores.reduce((a, b) => a + b, 0) / data.scores.length;\n  return {\n    json: {\n      analyse_typ: 'relevanz_ranking',\n      keyword_oder_thema: kw,\n      score: Math.round(avgScore * 100),\n      details: `Durchschnittliche Relevanz über ${data.urls.length} Wettbewerber-Seiten`,\n      kategorie: avgScore > 0.6 ? 'pflicht' : 'differenzierung'\n    }\n  };\n});\nreturn rankings;"
+      },
+      "id": "wf3-code-008",
+      "name": "Relevanz-Ranking erstellen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{$env.ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4096,\n  \"system\": \"Du bist ein SEO-Analyst. Analysiere die Alignment-Matrix und identifiziere Commodity Topics (Themen, die ALLE Top-Wettbewerber abdecken und daher Pflicht sind) sowie potenzielle Differenzierungsmöglichkeiten.\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analysiere folgende Query-Alignment-Matrix und identifiziere:\\n1. Commodity Topics (Pflicht-Themen, die alle abdecken)\\n2. Differenzierungsmöglichkeiten (Themen mit niedriger Abdeckung)\\n3. Content-Lücken (fehlende Themen)\\n\\nAlignment-Matrix:\\n\" + JSON.stringify($input.all().map(i => i.json), null, 2) + \"\\n\\nAntworte im JSON-Format:\\n{\\\"commodity_topics\\\": [{\\\"thema\\\": \\\"...\\\", \\\"score\\\": 0.0, \\\"empfehlung\\\": \\\"...\\\"}], \\\"differenzierung\\\": [{\\\"thema\\\": \\\"...\\\", \\\"score\\\": 0.0, \\\"empfehlung\\\": \\\"...\\\"}], \\\"luecken\\\": [{\\\"thema\\\": \\\"...\\\", \\\"empfehlung\\\": \\\"...\\\"}]}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "wf3-http-009",
+      "name": "Claude: Commodity Topics identifizieren",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1500, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.content[0].text;\n\n// Parse Claude's JSON response\nlet analysis;\ntry {\n  // Try to extract JSON from the response\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  analysis = JSON.parse(jsonMatch ? jsonMatch[0] : content);\n} catch (e) {\n  return [{\n    json: {\n      analyse_typ: 'commodity_analyse',\n      keyword_oder_thema: 'Parsing-Fehler',\n      score: 0,\n      details: content,\n      kategorie: 'fehler'\n    }\n  }];\n}\n\nconst results = [];\n\n// Commodity Topics\nif (analysis.commodity_topics) {\n  for (const topic of analysis.commodity_topics) {\n    results.push({\n      json: {\n        analyse_typ: 'commodity_topic',\n        keyword_oder_thema: topic.thema,\n        score: Math.round((topic.score || 0) * 100),\n        details: topic.empfehlung,\n        kategorie: 'pflicht'\n      }\n    });\n  }\n}\n\n// Differenzierung\nif (analysis.differenzierung) {\n  for (const diff of analysis.differenzierung) {\n    results.push({\n      json: {\n        analyse_typ: 'differenzierung',\n        keyword_oder_thema: diff.thema,\n        score: Math.round((diff.score || 0) * 100),\n        details: diff.empfehlung,\n        kategorie: 'differenzierung'\n      }\n    });\n  }\n}\n\n// Luecken\nif (analysis.luecken) {\n  for (const luecke of analysis.luecken) {\n    results.push({\n      json: {\n        analyse_typ: 'content_luecke',\n        keyword_oder_thema: luecke.thema,\n        score: 0,\n        details: luecke.empfehlung,\n        kategorie: 'luecke'\n      }\n    });\n  }\n}\n\nreturn results.length > 0 ? results : [{ json: { analyse_typ: 'keine_ergebnisse', keyword_oder_thema: '', score: 0, details: 'Keine Ergebnisse aus Claude-Analyse', kategorie: '' } }];"
+      },
+      "id": "wf3-code-010",
+      "name": "Claude-Antwort verarbeiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 500]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Semantische_Analyse"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "analyse_typ": "={{ $json.analyse_typ }}",
+            "keyword_oder_thema": "={{ $json.keyword_oder_thema }}",
+            "score": "={{ $json.score }}",
+            "details": "={{ $json.details }}",
+            "kategorie": "={{ $json.kategorie }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "analyse_typ",
+              "displayName": "analyse_typ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "keyword_oder_thema",
+              "displayName": "keyword_oder_thema",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "details",
+              "displayName": "details",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "kategorie",
+              "displayName": "kategorie",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf3-sheets-011",
+      "name": "Analyse-Ergebnisse speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2100, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Projekt"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "deep_analyse"
+          },
+          "matchingColumns": ["status"],
+          "schema": [
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf3-sheets-012",
+      "name": "Projekt-Status updaten",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2400, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF3: Deep Analyse (Semantik)\n\nVoyage AI Embeddings + Claude Commodity Analysis\n\n**Ablauf:**\n1. Keywords & SERP-Content laden\n2. Embedding-Inputs vorbereiten\n3. Voyage AI Embeddings (Query + Document)\n4. Query Alignment Matrix berechnen\n5. Relevanz-Ranking + Commodity Topics\n6. Ergebnisse speichern",
+        "height": 340,
+        "width": 360,
+        "color": 4
+      },
+      "id": "wf3-sticky-013",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-300, 100]
+    },
+    {
+      "parameters": {
+        "content": "## Voyage AI API Key erforderlich\n\nStelle sicher, dass der Voyage AI API Key als Variable `voyageApiKey` konfiguriert ist.\n\nModell: `voyage-3-lite`\n- Query Embeddings (input_type: query)\n- Document Embeddings (input_type: document)",
+        "height": 260,
+        "width": 320,
+        "color": 6
+      },
+      "id": "wf3-sticky-014",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [800, -100]
+    },
+    {
+      "parameters": {
+        "content": "## Claude API Key erforderlich\n\nStelle sicher, dass der Anthropic API Key als Umgebungsvariable `ANTHROPIC_API_KEY` konfiguriert ist.\n\nModell: `claude-sonnet-4-20250514`\n- Commodity Topics identifizieren\n- Differenzierungsanalyse",
+        "height": 260,
+        "width": 320,
+        "color": 6
+      },
+      "id": "wf3-sticky-015",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1400, 700]
+    }
+  ],
+  "connections": {
+    "Start: Deep Analyse": {
+      "main": [
+        [
+          {
+            "node": "Keywords laden",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SERP-Content laden",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keywords laden": {
+      "main": [
+        [
+          {
+            "node": "Embedding-Inputs vorbereiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SERP-Content laden": {
+      "main": [
+        [
+          {
+            "node": "Embedding-Inputs vorbereiten",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Embedding-Inputs vorbereiten": {
+      "main": [
+        [
+          {
+            "node": "Voyage AI: Query Embeddings",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Voyage AI: Document Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voyage AI: Query Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Query Alignment Matrix berechnen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voyage AI: Document Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Query Alignment Matrix berechnen",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Query Alignment Matrix berechnen": {
+      "main": [
+        [
+          {
+            "node": "Relevanz-Ranking erstellen",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Claude: Commodity Topics identifizieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Commodity Topics identifizieren": {
+      "main": [
+        [
+          {
+            "node": "Claude-Antwort verarbeiten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Relevanz-Ranking erstellen": {
+      "main": [
+        [
+          {
+            "node": "Analyse-Ergebnisse speichern",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude-Antwort verarbeiten": {
+      "main": [
+        [
+          {
+            "node": "Analyse-Ergebnisse speichern",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Analyse-Ergebnisse speichern": {
+      "main": [
+        [
+          {
+            "node": "Projekt-Status updaten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

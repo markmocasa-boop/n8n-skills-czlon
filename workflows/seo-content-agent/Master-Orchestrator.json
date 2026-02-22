@@ -1,0 +1,625 @@
+{
+  "name": "SEO Content Agent — Master Orchestrator",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "master-trigger",
+      "name": "Master Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date().toISOString();\n\nreturn [{\n  json: {\n    projekt_id: `seo-${Date.now()}`,\n    status: 'gestartet',\n    gestartet_am: now,\n    aktuelle_phase: 'WF1',\n    fortschritt: 0,\n    fehler: []\n  }\n}];"
+      },
+      "id": "master-init",
+      "name": "Projekt initialisieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 400]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.wf1_id || '' }}"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "master-wf1",
+      "name": "WF1: Projekt-Setup",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [600, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\nreturn [{\n  json: {\n    ...input,\n    status: 'wf1_abgeschlossen',\n    aktuelle_phase: 'Keyword-Auswahl',\n    fortschritt: 12.5,\n    wf1_completed_at: new Date().toISOString(),\n    message: 'WF1 Projekt-Setup & Keyword-Recherche abgeschlossen. Warte auf Keyword-Auswahl via Formular.'\n  }\n}];"
+      },
+      "id": "master-status-wf1",
+      "name": "Status: WF1 abgeschlossen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "options": {
+          "webhookSuffix": "keyword-auswahl"
+        }
+      },
+      "id": "master-wait-keyword",
+      "name": "Warte auf Keyword-Auswahl (Form)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1200, 400]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.wf2_id || '' }}"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "master-wf2",
+      "name": "WF2: Keyword-Auswahl & SERP",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1500, 400]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.wf3_id || '' }}"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "master-wf3",
+      "name": "WF3: Deep Analyse",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1800, 400]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.wf4_id || '' }}"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "master-wf4",
+      "name": "WF4: User Insight Mining",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [2100, 400]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "options": {
+          "webhookSuffix": "expert-input"
+        }
+      },
+      "id": "master-wait-expert",
+      "name": "Warte auf Expert Input (Form)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2400, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst expertData = $('Warte auf Expert Input (Form)').first().json;\n\nreturn [{\n  json: {\n    ...input,\n    expert_input: expertData,\n    status: 'expert_input_erhalten',\n    aktuelle_phase: 'WF5',\n    fortschritt: 50,\n    expert_input_at: new Date().toISOString(),\n    message: 'Expert Input integriert. Starte Gliederungserstellung.'\n  }\n}];"
+      },
+      "id": "master-expert-input",
+      "name": "Expert Input integriert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2700, 400]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.wf5_id || '' }}"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "master-wf5",
+      "name": "WF5: Gliederung",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [3000, 400]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "options": {
+          "webhookSuffix": "gliederungs-freigabe"
+        }
+      },
+      "id": "master-wait-gliederung",
+      "name": "Warte auf Gliederungs-Freigabe",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [3300, 400]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.wf6_id || '' }}"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "master-wf6",
+      "name": "WF6: Content-Erstellung",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [3600, 400]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.wf7_id || '' }}"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "master-wf7",
+      "name": "WF7: QA & Sub-Agenten",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [3900, 400]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.wf8_id || '' }}"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "master-wf8",
+      "name": "WF8: Finalisierung",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [4200, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst now = new Date().toISOString();\n\nreturn [{\n  json: {\n    status: 'abgeschlossen',\n    projekt_id: input.projekt_id || 'unknown',\n    fortschritt: 100,\n    abgeschlossen_am: now,\n    phasen_durchlaufen: ['WF1', 'WF2', 'WF3', 'WF4', 'WF5', 'WF6', 'WF7', 'WF8'],\n    message: 'SEO Content Agent Projekt erfolgreich abgeschlossen! Alle 8 Workflow-Phasen wurden durchlaufen.',\n    zusammenfassung: {\n      projekt_setup: 'WF1 - Keyword-Recherche & Projekt-Initialisierung',\n      keyword_serp: 'WF2 - Keyword-Auswahl & SERP-Analyse',\n      deep_analyse: 'WF3 - Deep Content & Semantik-Analyse',\n      user_insights: 'WF4 - User Insight Mining (Reddit, Quora, PAA)',\n      gliederung: 'WF5 - KI-gestützte Gliederungserstellung',\n      content: 'WF6 - Content-Erstellung & Humanisierung',\n      qa: 'WF7 - Quality Assurance & Sub-Agenten',\n      export: 'WF8 - Finalisierung & Google Drive Export'\n    }\n  }\n}];"
+      },
+      "id": "master-done",
+      "name": "Projekt abgeschlossen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4500, 400]
+    },
+    {
+      "parameters": {},
+      "id": "master-error-trigger",
+      "name": "Fehlerbehandlung",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 800]
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\n\nconst errorInfo = {\n  fehler_typ: error.execution?.error?.name || 'UnknownError',\n  fehler_nachricht: error.execution?.error?.message || 'Unbekannter Fehler aufgetreten',\n  fehler_node: error.execution?.error?.node?.name || 'Unbekannt',\n  execution_id: error.execution?.id || 'N/A',\n  workflow_name: error.workflow?.name || 'N/A',\n  zeitpunkt: new Date().toISOString(),\n  schweregrad: 'hoch',\n  empfehlung: 'Bitte überprüfen Sie die Workflow-Konfiguration und die API-Credentials.'\n};\n\nreturn [{ json: errorInfo }];"
+      },
+      "id": "master-error-analyze",
+      "name": "Fehler analysieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 800]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.slack.com/services/YOUR_WEBHOOK_URL",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: '⚠️ SEO Content Agent FEHLER!\\n\\nWorkflow: ' + $json.workflow_name + '\\nNode: ' + $json.fehler_node + '\\nFehler: ' + $json.fehler_nachricht + '\\nZeitpunkt: ' + $json.zeitpunkt + '\\nExecution ID: ' + $json.execution_id + '\\n\\nBitte umgehend prüfen!' }) }}"
+      },
+      "id": "master-error-notify",
+      "name": "Fehler-Benachrichtigung",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 800]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Projekt"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "={{ 'fehler_' + $json.fehler_node }}",
+            "fehler_details": "={{ $json.fehler_nachricht }}",
+            "fehler_zeitpunkt": "={{ $json.zeitpunkt }}"
+          }
+        }
+      },
+      "id": "master-error-log",
+      "name": "Fehler in Projekt-Tab loggen",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [900, 800],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "# SEO CONTENT AGENT — MASTER ORCHESTRATOR\n\nDieser Workflow steuert den gesamten SEO Content Agent Prozess.\nAlle 8 Sub-Workflows werden sequenziell ausgeführt, mit Pausen für manuelle Eingaben (Formulare).",
+        "width": 4500,
+        "height": 100,
+        "color": 4
+      },
+      "id": "master-sticky-title",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 50]
+    },
+    {
+      "parameters": {
+        "content": "### Phase 1-2: Recherche\nProjekt-Setup, Keyword-Recherche, SERP-Analyse",
+        "width": 800,
+        "height": 60,
+        "color": 2
+      },
+      "id": "master-sticky-phase12",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [400, 150]
+    },
+    {
+      "parameters": {
+        "content": "### Phase 3-4: Analyse\nDeep Analyse, Semantik, User Insights",
+        "width": 800,
+        "height": 60,
+        "color": 3
+      },
+      "id": "master-sticky-phase34",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1600, 150]
+    },
+    {
+      "parameters": {
+        "content": "### Phase 5-6: Content\nGliederung, Content-Erstellung, Humanisierung",
+        "width": 800,
+        "height": 60,
+        "color": 5
+      },
+      "id": "master-sticky-phase56",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [2800, 150]
+    },
+    {
+      "parameters": {
+        "content": "### Phase 7-8: QA & Export\nQuality Assurance, Finalisierung, Google Drive Export",
+        "width": 900,
+        "height": 60,
+        "color": 6
+      },
+      "id": "master-sticky-phase78",
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [3700, 150]
+    },
+    {
+      "parameters": {
+        "content": "⏸️ **FORMULAR-PAUSE**\nWartet auf Keyword-Auswahl\nvia externen Webhook",
+        "width": 250,
+        "height": 80,
+        "color": 7
+      },
+      "id": "master-sticky-wait1",
+      "name": "Sticky Note5",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1150, 280]
+    },
+    {
+      "parameters": {
+        "content": "⏸️ **FORMULAR-PAUSE**\nWartet auf Expert Input\nvia externen Webhook",
+        "width": 250,
+        "height": 80,
+        "color": 7
+      },
+      "id": "master-sticky-wait2",
+      "name": "Sticky Note6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [2350, 280]
+    },
+    {
+      "parameters": {
+        "content": "⏸️ **FORMULAR-PAUSE**\nWartet auf Gliederungs-Freigabe\nvia externen Webhook",
+        "width": 250,
+        "height": 80,
+        "color": 7
+      },
+      "id": "master-sticky-wait3",
+      "name": "Sticky Note7",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [3250, 280]
+    },
+    {
+      "parameters": {
+        "content": "### Fehlerbehandlung\nFehler werden analysiert, per Slack/Email gemeldet und im Projekt-Tab geloggt.",
+        "width": 900,
+        "height": 60,
+        "color": 1
+      },
+      "id": "master-sticky-error",
+      "name": "Sticky Note8",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 700]
+    }
+  ],
+  "connections": {
+    "Master Start": {
+      "main": [
+        [
+          {
+            "node": "Projekt initialisieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Projekt initialisieren": {
+      "main": [
+        [
+          {
+            "node": "WF1: Projekt-Setup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WF1: Projekt-Setup": {
+      "main": [
+        [
+          {
+            "node": "Status: WF1 abgeschlossen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: WF1 abgeschlossen": {
+      "main": [
+        [
+          {
+            "node": "Warte auf Keyword-Auswahl (Form)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warte auf Keyword-Auswahl (Form)": {
+      "main": [
+        [
+          {
+            "node": "WF2: Keyword-Auswahl & SERP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WF2: Keyword-Auswahl & SERP": {
+      "main": [
+        [
+          {
+            "node": "WF3: Deep Analyse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WF3: Deep Analyse": {
+      "main": [
+        [
+          {
+            "node": "WF4: User Insight Mining",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WF4: User Insight Mining": {
+      "main": [
+        [
+          {
+            "node": "Warte auf Expert Input (Form)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warte auf Expert Input (Form)": {
+      "main": [
+        [
+          {
+            "node": "Expert Input integriert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expert Input integriert": {
+      "main": [
+        [
+          {
+            "node": "WF5: Gliederung",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WF5: Gliederung": {
+      "main": [
+        [
+          {
+            "node": "Warte auf Gliederungs-Freigabe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Warte auf Gliederungs-Freigabe": {
+      "main": [
+        [
+          {
+            "node": "WF6: Content-Erstellung",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WF6: Content-Erstellung": {
+      "main": [
+        [
+          {
+            "node": "WF7: QA & Sub-Agenten",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WF7: QA & Sub-Agenten": {
+      "main": [
+        [
+          {
+            "node": "WF8: Finalisierung",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WF8: Finalisierung": {
+      "main": [
+        [
+          {
+            "node": "Projekt abgeschlossen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fehlerbehandlung": {
+      "main": [
+        [
+          {
+            "node": "Fehler analysieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fehler analysieren": {
+      "main": [
+        [
+          {
+            "node": "Fehler-Benachrichtigung",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fehler-Benachrichtigung": {
+      "main": [
+        [
+          {
+            "node": "Fehler in Projekt-Tab loggen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

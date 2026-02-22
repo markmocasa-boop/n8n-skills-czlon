@@ -1,0 +1,922 @@
+{
+  "name": "WF7: QA & Sub-Agenten",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-7001-4000-8000-000000000001",
+      "name": "Start: QA & Sub-Agenten",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 500]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $json.spreadsheet_url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Content_Draft"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000002",
+      "name": "Content Draft laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $json.spreadsheet_url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Semantische_Analyse"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000003",
+      "name": "Analyse laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $json.spreadsheet_url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Gliederung"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000004",
+      "name": "Gliederung laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 700],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.voice_profile_file_id || 'voice-profile-file-id' }}"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000005",
+      "name": "Voice Profile laden",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [300, 900],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credential-id",
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.sitemap_file_id || 'sitemap-file-id' }}"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000006",
+      "name": "Sitemap laden",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [300, 1100],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credential-id",
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const drafts = $('Content Draft laden').all().map(i => i.json);\nconst fullArticle = drafts.map(d => d.content_raw).join('\\n\\n');\nconst analyse = $('Analyse laden').all().map(i => i.json);\nconst gliederung = $('Gliederung laden').all().map(i => i.json);\nconst voiceProfile = $('Voice Profile laden').first()?.json?.data || '';\nconst sitemap = $('Sitemap laden').first()?.json?.data || '';\n\nreturn [{ json: { fullArticle, analyse, gliederung, voiceProfile, sitemap } }];"
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000007",
+      "name": "Artikel zusammenstellen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.voyageai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'voyage-3-lite', input: [$('Artikel zusammenstellen').first().json.fullArticle], input_type: 'document' }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000008",
+      "name": "Voyage AI: Content Embeddings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "voyage-ai-credential-id",
+          "name": "Voyage AI API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.voyageai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'voyage-3-lite', input: $('Artikel zusammenstellen').first().json.analyse.map(a => a.keyword_oder_thema || ''), input_type: 'document' }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000009",
+      "name": "Voyage AI: Analyse Embeddings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "voyage-ai-credential-id",
+          "name": "Voyage AI API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function cosineSimilarity(a, b) {\n  let dot = 0, nA = 0, nB = 0;\n  for (let i = 0; i < a.length; i++) { dot += a[i]*b[i]; nA += a[i]*a[i]; nB += b[i]*b[i]; }\n  return dot / (Math.sqrt(nA) * Math.sqrt(nB));\n}\n\nconst contentEmb = $('Voyage AI: Content Embeddings').first().json.data[0].embedding;\nconst analyseEmbs = $('Voyage AI: Analyse Embeddings').first().json.data.map(d => d.embedding);\nconst analyse = $('Artikel zusammenstellen').first().json.analyse;\n\nconst results = [];\nconst pflichtThemen = analyse.filter(a => a.kategorie === 'pflicht');\n\nfor (let i = 0; i < analyseEmbs.length; i++) {\n  const score = cosineSimilarity(contentEmb, analyseEmbs[i]);\n  results.push({\n    json: {\n      check_typ: 'pflichtthemen',\n      thema: analyse[i]?.keyword_oder_thema || '',\n      status: score > 0.6 ? 'bestanden' : 'nacharbeit',\n      details: `Coverage Score: ${(score * 100).toFixed(1)}%`,\n      score: Math.round(score * 100)\n    }\n  });\n}\nreturn results;"
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000010",
+      "name": "Coverage Score berechnen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Start: QA & Sub-Agenten').first().json.spreadsheet_url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "QA_Ergebnisse"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000011",
+      "name": "QA-Coverage speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1700, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $credentials.httpHeaderAuth.value }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 8000, system: 'Du bist ein AI Humanizer. Deine Aufgabe ist es, KI-generierten Text natürlicher und menschlicher klingen zu lassen, ohne den Inhalt oder die SEO-Optimierung zu verändern. Entferne typische KI-Muster wie: übermäßige Aufzählungen, generische Übergänge (\\'Darüber hinaus\\', \\'Zusammenfassend lässt sich sagen\\'), zu perfekte Satzstrukturen. Behalte den Informationsgehalt bei.', messages: [{ role: 'user', content: $('Artikel zusammenstellen').first().json.fullArticle }] }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000012",
+      "name": "Claude: AI Humanizer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 700],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "anthropic-api-credential-id",
+          "name": "Anthropic API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $('Claude: AI Humanizer').first().json;\nconst humanizedText = response.content[0].text;\n\nreturn [{ json: { content_humanized: humanizedText } }];"
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000013",
+      "name": "Humanized Content verarbeiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 700]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $credentials.httpHeaderAuth.value }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: 'Du bist ein Voice & Brand Consistency Checker. Vergleiche den Artikel mit dem Voice Profile und gib Feedback: Welche Abschnitte passen zur Stimme? Wo weicht der Text ab? Schlage konkrete Umformulierungen vor.', messages: [{ role: 'user', content: 'Artikel:\\n' + $('Artikel zusammenstellen').first().json.fullArticle + '\\n\\nVoice Profile:\\n' + $('Artikel zusammenstellen').first().json.voiceProfile }] }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000014",
+      "name": "Claude: Voice Checker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 950],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "anthropic-api-credential-id",
+          "name": "Anthropic API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $('Claude: Voice Checker').first().json;\nconst voiceCheckResult = response.content[0].text;\n\nreturn [{ json: {\n  check_typ: 'voice_check',\n  thema: 'Brand Voice Consistency',\n  status: 'geprüft',\n  details: voiceCheckResult,\n  score: 0\n} }];"
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000015",
+      "name": "Voice Check Ergebnis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 950]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $credentials.httpHeaderAuth.value }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: 'Du bist ein Meta-Tag-Optimizer. Erstelle 3-5 Varianten für Title-Tags (max 60 Zeichen) und Meta-Descriptions (max 155 Zeichen). Optimiere für CTR und Keyword-Relevanz. Gib die Ergebnisse als JSON-Array zurück mit Feldern: typ (title_tag/meta_description), vorschlag.', messages: [{ role: 'user', content: 'Artikel-Titel: ' + ($('Artikel zusammenstellen').first().json.gliederung[0]?.ueberschrift || 'Artikel') + '\\nKeywords: ' + $('Artikel zusammenstellen').first().json.analyse.map(a => a.keyword_oder_thema).join(', ') + '\\nArtikel-Auszug: ' + $('Artikel zusammenstellen').first().json.fullArticle.substring(0, 2000) }] }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000016",
+      "name": "Claude: Meta Optimizer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 1200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "anthropic-api-credential-id",
+          "name": "Anthropic API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $('Claude: Meta Optimizer').first().json;\nconst text = response.content[0].text;\n\nlet metaSuggestions = [];\ntry {\n  const jsonMatch = text.match(/\\[([\\s\\S]*?)\\]/);\n  if (jsonMatch) {\n    metaSuggestions = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  metaSuggestions = [{ typ: 'meta_error', vorschlag: text }];\n}\n\nreturn metaSuggestions.map(m => ({ json: {\n  typ: m.typ || 'meta',\n  vorschlag: m.vorschlag || '',\n  position_im_text: '',\n  ziel_url: ''\n} }));"
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000017",
+      "name": "Meta-Vorschläge verarbeiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 1200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $credentials.httpHeaderAuth.value }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: 'Du bist ein interner Link-Stratege. Analysiere den Artikel und die Sitemap. Schlage interne Links vor: welche bestehenden Seiten sollten AUF diesen Artikel verlinken, und welche Links sollten AUS diesem Artikel heraus gesetzt werden. Gib Ergebnisse als JSON-Array: typ (interner_link_im_text/interner_link_zu_text), vorschlag, position_im_text, ziel_url.', messages: [{ role: 'user', content: 'Artikel:\\n' + $('Artikel zusammenstellen').first().json.fullArticle.substring(0, 4000) + '\\n\\nSitemap:\\n' + $('Artikel zusammenstellen').first().json.sitemap }] }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000018",
+      "name": "Claude: Link Strategist",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 1450],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "anthropic-api-credential-id",
+          "name": "Anthropic API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $('Claude: Link Strategist').first().json;\nconst text = response.content[0].text;\n\nlet linkSuggestions = [];\ntry {\n  const jsonMatch = text.match(/\\[([\\s\\S]*?)\\]/);\n  if (jsonMatch) {\n    linkSuggestions = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  linkSuggestions = [{ typ: 'link_error', vorschlag: text }];\n}\n\nreturn linkSuggestions.map(l => ({ json: {\n  typ: l.typ || 'interner_link',\n  vorschlag: l.vorschlag || '',\n  position_im_text: l.position_im_text || '',\n  ziel_url: l.ziel_url || ''\n} }));"
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000019",
+      "name": "Link-Vorschläge verarbeiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 1450]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $credentials.httpHeaderAuth.value }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: 'Du bist ein Visual Content Planner. Analysiere den Artikel und schlage Bilder, Infografiken und visuelle Elemente vor. Erstelle für jedes Bild einen Midjourney-Prompt. Gib Ergebnisse als JSON-Array: typ (bild_idee/midjourney_prompt), vorschlag, position_im_text.', messages: [{ role: 'user', content: $('Artikel zusammenstellen').first().json.fullArticle }] }) }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000020",
+      "name": "Claude: Visual Planner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 1700],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "anthropic-api-credential-id",
+          "name": "Anthropic API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $('Claude: Visual Planner').first().json;\nconst text = response.content[0].text;\n\nlet visualSuggestions = [];\ntry {\n  const jsonMatch = text.match(/\\[([\\s\\S]*?)\\]/);\n  if (jsonMatch) {\n    visualSuggestions = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  visualSuggestions = [{ typ: 'visual_error', vorschlag: text }];\n}\n\nreturn visualSuggestions.map(v => ({ json: {\n  typ: v.typ || 'bild_idee',\n  vorschlag: v.vorschlag || '',\n  position_im_text: v.position_im_text || '',\n  ziel_url: ''\n} }));"
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000021",
+      "name": "Visual-Plan verarbeiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 1700]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 3,
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000022",
+      "name": "Alle Meta/Links/Visuals zusammenführen",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1700, 1200]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Start: QA & Sub-Agenten').first().json.spreadsheet_url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Meta_und_Links"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "typ": "={{ $json.typ }}",
+            "vorschlag": "={{ $json.vorschlag }}",
+            "position_im_text": "={{ $json.position_im_text }}",
+            "ziel_url": "={{ $json.ziel_url }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000023",
+      "name": "Meta & Links speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2050, 1200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Start: QA & Sub-Agenten').first().json.spreadsheet_url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "QA_Ergebnisse"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000024",
+      "name": "QA Voice Check speichern",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1700, 950],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Start: QA & Sub-Agenten').first().json.spreadsheet_url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Content_Draft"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "content_humanized": "={{ $json.content_humanized }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000025",
+      "name": "Humanized Content updaten",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1700, 700],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const coverageResults = $('QA-Coverage speichern').all().map(i => i.json);\nconst voiceCheck = $('QA Voice Check speichern').first()?.json || {};\nconst humanizedContent = $('Humanized Content updaten').first()?.json || {};\nconst metaLinks = $('Meta & Links speichern').all().map(i => i.json);\n\nconst coverageScores = coverageResults.filter(r => r.score).map(r => r.score);\nconst avgCoverage = coverageScores.length > 0 ? Math.round(coverageScores.reduce((a, b) => a + b, 0) / coverageScores.length) : 0;\nconst bestandenCount = coverageResults.filter(r => r.status === 'bestanden').length;\nconst nacharbeitCount = coverageResults.filter(r => r.status === 'nacharbeit').length;\n\nconst metaCount = metaLinks.filter(m => m.typ === 'title_tag' || m.typ === 'meta_description').length;\nconst linkCount = metaLinks.filter(m => m.typ?.includes('link')).length;\nconst visualCount = metaLinks.filter(m => m.typ === 'bild_idee' || m.typ === 'midjourney_prompt').length;\n\nreturn [{ json: {\n  qa_zusammenfassung: {\n    coverage_score_avg: avgCoverage,\n    pflichtthemen_bestanden: bestandenCount,\n    pflichtthemen_nacharbeit: nacharbeitCount,\n    voice_check: voiceCheck.status || 'geprüft',\n    humanizer: humanizedContent.content_humanized ? 'abgeschlossen' : 'fehlgeschlagen',\n    meta_vorschlaege: metaCount,\n    link_vorschlaege: linkCount,\n    visual_vorschlaege: visualCount,\n    gesamt_status: nacharbeitCount === 0 ? 'bestanden' : 'nacharbeit_erforderlich'\n  }\n} }];"
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000026",
+      "name": "QA-Zusammenfassung",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2350, 500]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Start: QA & Sub-Agenten').first().json.spreadsheet_url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Projekt"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "qa_abgeschlossen",
+            "qa_zusammenfassung": "={{ JSON.stringify($json.qa_zusammenfassung) }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000027",
+      "name": "Projekt-Status updaten",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2650, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-credential-id",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF7: QA & Sub-Agenten\n### 5 spezialisierte Claude Sub-Agents\n\n- **Sub-Agent 1:** AI Humanizer\n- **Sub-Agent 2:** Voice Checker\n- **Sub-Agent 3:** Meta Optimizer\n- **Sub-Agent 4:** Link Strategist\n- **Sub-Agent 5:** Visual Planner\n\nAlle Sub-Agents laufen parallel nach dem Zusammenstellen des Artikels.",
+        "width": 400,
+        "height": 200
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000028",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-100, 100]
+    },
+    {
+      "parameters": {
+        "content": "### Sub-Agent 1: AI Humanizer\nMacht KI-generierten Text natuerlicher und menschlicher.",
+        "width": 300,
+        "height": 100
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000029",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [950, 600]
+    },
+    {
+      "parameters": {
+        "content": "### Sub-Agent 2: Voice Checker\nPrueft Brand Voice Consistency gegen das Voice Profile.",
+        "width": 300,
+        "height": 100
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000030",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [950, 850]
+    },
+    {
+      "parameters": {
+        "content": "### Sub-Agent 3: Meta Optimizer\nErstellt Title-Tag und Meta-Description Varianten.",
+        "width": 300,
+        "height": 100
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000031",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [950, 1100]
+    },
+    {
+      "parameters": {
+        "content": "### Sub-Agent 4: Link Strategist\nAnalysiert Sitemap und schlaegt interne Links vor.",
+        "width": 300,
+        "height": 100
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000032",
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [950, 1350]
+    },
+    {
+      "parameters": {
+        "content": "### Sub-Agent 5: Visual Planner\nSchlaegt Bilder und Infografiken mit Midjourney-Prompts vor.",
+        "width": 300,
+        "height": 100
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000033",
+      "name": "Sticky Note5",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [950, 1600]
+    },
+    {
+      "parameters": {
+        "content": "### Voyage AI: Coverage Score\nBerechnet semantische Aehnlichkeit zwischen Content und Pflichtthemen mittels Embeddings.",
+        "width": 300,
+        "height": 100
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000034",
+      "name": "Sticky Note6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [950, 100]
+    }
+  ],
+  "connections": {
+    "Start: QA & Sub-Agenten": {
+      "main": [
+        [
+          { "node": "Content Draft laden", "type": "main", "index": 0 },
+          { "node": "Analyse laden", "type": "main", "index": 0 },
+          { "node": "Gliederung laden", "type": "main", "index": 0 },
+          { "node": "Voice Profile laden", "type": "main", "index": 0 },
+          { "node": "Sitemap laden", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Content Draft laden": {
+      "main": [
+        [
+          { "node": "Artikel zusammenstellen", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Analyse laden": {
+      "main": [
+        [
+          { "node": "Artikel zusammenstellen", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Gliederung laden": {
+      "main": [
+        [
+          { "node": "Artikel zusammenstellen", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Voice Profile laden": {
+      "main": [
+        [
+          { "node": "Artikel zusammenstellen", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Sitemap laden": {
+      "main": [
+        [
+          { "node": "Artikel zusammenstellen", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Artikel zusammenstellen": {
+      "main": [
+        [
+          { "node": "Voyage AI: Content Embeddings", "type": "main", "index": 0 },
+          { "node": "Voyage AI: Analyse Embeddings", "type": "main", "index": 0 },
+          { "node": "Claude: AI Humanizer", "type": "main", "index": 0 },
+          { "node": "Claude: Voice Checker", "type": "main", "index": 0 },
+          { "node": "Claude: Meta Optimizer", "type": "main", "index": 0 },
+          { "node": "Claude: Link Strategist", "type": "main", "index": 0 },
+          { "node": "Claude: Visual Planner", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Voyage AI: Content Embeddings": {
+      "main": [
+        [
+          { "node": "Coverage Score berechnen", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Voyage AI: Analyse Embeddings": {
+      "main": [
+        [
+          { "node": "Coverage Score berechnen", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Coverage Score berechnen": {
+      "main": [
+        [
+          { "node": "QA-Coverage speichern", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Claude: AI Humanizer": {
+      "main": [
+        [
+          { "node": "Humanized Content verarbeiten", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Humanized Content verarbeiten": {
+      "main": [
+        [
+          { "node": "Humanized Content updaten", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Claude: Voice Checker": {
+      "main": [
+        [
+          { "node": "Voice Check Ergebnis", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Voice Check Ergebnis": {
+      "main": [
+        [
+          { "node": "QA Voice Check speichern", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Claude: Meta Optimizer": {
+      "main": [
+        [
+          { "node": "Meta-Vorschläge verarbeiten", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Meta-Vorschläge verarbeiten": {
+      "main": [
+        [
+          { "node": "Alle Meta/Links/Visuals zusammenführen", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Claude: Link Strategist": {
+      "main": [
+        [
+          { "node": "Link-Vorschläge verarbeiten", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Link-Vorschläge verarbeiten": {
+      "main": [
+        [
+          { "node": "Alle Meta/Links/Visuals zusammenführen", "type": "main", "index": 1 }
+        ]
+      ]
+    },
+    "Claude: Visual Planner": {
+      "main": [
+        [
+          { "node": "Visual-Plan verarbeiten", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Visual-Plan verarbeiten": {
+      "main": [
+        [
+          { "node": "Alle Meta/Links/Visuals zusammenführen", "type": "main", "index": 2 }
+        ]
+      ]
+    },
+    "Alle Meta/Links/Visuals zusammenführen": {
+      "main": [
+        [
+          { "node": "Meta & Links speichern", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "QA-Coverage speichern": {
+      "main": [
+        [
+          { "node": "QA-Zusammenfassung", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "QA Voice Check speichern": {
+      "main": [
+        [
+          { "node": "QA-Zusammenfassung", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Humanized Content updaten": {
+      "main": [
+        [
+          { "node": "QA-Zusammenfassung", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Meta & Links speichern": {
+      "main": [
+        [
+          { "node": "QA-Zusammenfassung", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "QA-Zusammenfassung": {
+      "main": [
+        [
+          { "node": "Projekt-Status updaten", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
