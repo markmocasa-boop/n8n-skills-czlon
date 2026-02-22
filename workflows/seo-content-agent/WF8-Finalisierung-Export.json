@@ -115,7 +115,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const drafts = $('Content Draft laden').all().map(i => i.json);\nconst meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst titleSuggestion = meta.find(m => m.typ === 'title_tag')?.vorschlag || projekt.thema;\n\nlet markdown = `# ${titleSuggestion}\\n\\n`;\nfor (const draft of drafts) {\n  const content = draft.content_humanized || draft.content_raw;\n  markdown += content + '\\n\\n';\n}\n\n// Add internal link suggestions as comments\nconst links = meta.filter(m => m.typ?.includes('link'));\nif (links.length > 0) {\n  markdown += '\\n\\n---\\n## Interne Link-Vorschläge\\n\\n';\n  for (const link of links) {\n    markdown += `- ${link.vorschlag} → ${link.ziel_url || ''}\\n`;\n  }\n}\n\nreturn [{ json: { markdown, filename: `artikel.md` } }];"
+        "jsCode": "const drafts = $('Content Draft laden').all().map(i => i.json);\nconst meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst titleSuggestion = meta.find(m => m.typ === 'title_tag')?.vorschlag || projekt.thema;\n\nlet markdown = `# ${titleSuggestion}\\n\\n`;\nfor (const draft of drafts) {\n  const content = draft.content_humanized || draft.content_raw;\n  markdown += content + '\\n\\n';\n}\n\n// Add internal link suggestions as comments\nconst links = meta.filter(m => m.typ?.includes('link'));\nif (links.length > 0) {\n  markdown += '\\n\\n---\\n## Interne Link-Vorschläge\\n\\n';\n  for (const link of links) {\n    markdown += `- ${link.vorschlag} → ${link.ziel_url || ''}\\n`;\n  }\n}\n\nconst binaryData = Buffer.from(markdown, 'utf-8').toString('base64');\nreturn [{\n  json: { markdown, filename: 'artikel.md' },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: 'text/markdown',\n      fileName: 'artikel.md'\n    }\n  }\n}];"
       },
       "id": "wf8-code-markdown",
       "name": "Markdown-Artikel erstellen",
@@ -125,7 +125,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const drafts = $('Content Draft laden').all().map(i => i.json);\nconst meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst title = meta.find(m => m.typ === 'title_tag')?.vorschlag || projekt.thema;\nconst metaDesc = meta.find(m => m.typ === 'meta_description')?.vorschlag || '';\n\nlet body = '';\nfor (const draft of drafts) {\n  const content = draft.content_humanized || draft.content_raw;\n  // Basic markdown to HTML conversion\n  const html = content\n    .replace(/^### (.*$)/gm, '<h3>$1</h3>')\n    .replace(/^## (.*$)/gm, '<h2>$1</h2>')\n    .replace(/^# (.*$)/gm, '<h1>$1</h1>')\n    .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')\n    .replace(/\\*(.*?)\\*/g, '<em>$1</em>')\n    .replace(/\\n\\n/g, '</p><p>')\n    .replace(/^(.+)$/gm, '<p>$1</p>');\n  body += html + '\\n';\n}\n\nconst htmlDoc = `<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>${title}</title>\n  <meta name=\"description\" content=\"${metaDesc}\">\n</head>\n<body>\n  <article>\n    ${body}\n  </article>\n</body>\n</html>`;\n\nreturn [{ json: { html: htmlDoc, filename: 'artikel.html' } }];"
+        "jsCode": "const drafts = $('Content Draft laden').all().map(i => i.json);\nconst meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst title = meta.find(m => m.typ === 'title_tag')?.vorschlag || projekt.thema;\nconst metaDesc = meta.find(m => m.typ === 'meta_description')?.vorschlag || '';\n\nlet body = '';\nfor (const draft of drafts) {\n  const content = draft.content_humanized || draft.content_raw;\n  // Basic markdown to HTML conversion\n  const html = content\n    .replace(/^### (.*$)/gm, '<h3>$1</h3>')\n    .replace(/^## (.*$)/gm, '<h2>$1</h2>')\n    .replace(/^# (.*$)/gm, '<h1>$1</h1>')\n    .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')\n    .replace(/\\*(.*?)\\*/g, '<em>$1</em>')\n    .replace(/\\n\\n/g, '</p><p>')\n    .replace(/^(.+)$/gm, '<p>$1</p>');\n  body += html + '\\n';\n}\n\nconst htmlDoc = `<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>${title}</title>\n  <meta name=\"description\" content=\"${metaDesc}\">\n</head>\n<body>\n  <article>\n    ${body}\n  </article>\n</body>\n</html>`;\n\nconst binaryData = Buffer.from(htmlDoc, 'utf-8').toString('base64');\nreturn [{\n  json: { html: htmlDoc, filename: 'artikel.html' },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: 'text/html',\n      fileName: 'artikel.html'\n    }\n  }\n}];"
       },
       "id": "wf8-code-html",
       "name": "HTML-Artikel erstellen",
@@ -135,7 +135,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const qa = $('QA-Ergebnisse laden').all().map(i => i.json);\nconst meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nlet bericht = `# Analyse-Bericht: ${projekt.thema}\\n\\n`;\nbericht += `**Projekt-ID:** ${projekt.projekt_id}\\n`;\nbericht += `**Erstellt:** ${projekt.erstellt_am}\\n\\n`;\n\nbericht += '## QA-Ergebnisse\\n\\n';\nfor (const q of qa) {\n  const icon = q.status === 'bestanden' ? '✅' : '⚠️';\n  bericht += `${icon} **${q.check_typ}**: ${q.details} (Score: ${q.score})\\n`;\n}\n\nbericht += '\\n## Meta-Vorschläge\\n\\n';\nconst titles = meta.filter(m => m.typ === 'title_tag');\nconst descs = meta.filter(m => m.typ === 'meta_description');\nbericht += '### Title Tags\\n';\ntitles.forEach((t, i) => { bericht += `${i+1}. ${t.vorschlag}\\n`; });\nbericht += '\\n### Meta Descriptions\\n';\ndescs.forEach((d, i) => { bericht += `${i+1}. ${d.vorschlag}\\n`; });\n\nbericht += '\\n## Bild-Ideen & Midjourney-Prompts\\n\\n';\nconst visuals = meta.filter(m => m.typ === 'bild_idee' || m.typ === 'midjourney_prompt');\nvisuals.forEach(v => { bericht += `- **${v.typ}**: ${v.vorschlag}\\n`; });\n\nbericht += '\\n## Link-Strategie\\n\\n';\nconst links = meta.filter(m => m.typ?.includes('link'));\nlinks.forEach(l => { bericht += `- ${l.vorschlag} → ${l.ziel_url || 'N/A'}\\n`; });\n\nreturn [{ json: { bericht, filename: 'analyse-bericht.md' } }];"
+        "jsCode": "const qa = $('QA-Ergebnisse laden').all().map(i => i.json);\nconst meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nlet bericht = `# Analyse-Bericht: ${projekt.thema}\\n\\n`;\nbericht += `**Projekt-ID:** ${projekt.projekt_id}\\n`;\nbericht += `**Erstellt:** ${projekt.erstellt_am}\\n\\n`;\n\nbericht += '## QA-Ergebnisse\\n\\n';\nfor (const q of qa) {\n  const icon = q.status === 'bestanden' ? '✅' : '⚠️';\n  bericht += `${icon} **${q.check_typ}**: ${q.details} (Score: ${q.score})\\n`;\n}\n\nbericht += '\\n## Meta-Vorschläge\\n\\n';\nconst titles = meta.filter(m => m.typ === 'title_tag');\nconst descs = meta.filter(m => m.typ === 'meta_description');\nbericht += '### Title Tags\\n';\ntitles.forEach((t, i) => { bericht += `${i+1}. ${t.vorschlag}\\n`; });\nbericht += '\\n### Meta Descriptions\\n';\ndescs.forEach((d, i) => { bericht += `${i+1}. ${d.vorschlag}\\n`; });\n\nbericht += '\\n## Bild-Ideen & Midjourney-Prompts\\n\\n';\nconst visuals = meta.filter(m => m.typ === 'bild_idee' || m.typ === 'midjourney_prompt');\nvisuals.forEach(v => { bericht += `- **${v.typ}**: ${v.vorschlag}\\n`; });\n\nbericht += '\\n## Link-Strategie\\n\\n';\nconst links = meta.filter(m => m.typ?.includes('link'));\nlinks.forEach(l => { bericht += `- ${l.vorschlag} → ${l.ziel_url || 'N/A'}\\n`; });\n\nconst binaryData = Buffer.from(bericht, 'utf-8').toString('base64');\nreturn [{\n  json: { bericht, filename: 'analyse-bericht.md' },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: 'text/markdown',\n      fileName: 'analyse-bericht.md'\n    }\n  }\n}];"
       },
       "id": "wf8-code-bericht",
       "name": "Analyse-Bericht erstellen",
@@ -145,7 +145,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst titles = meta.filter(m => m.typ === 'title_tag');\nconst descs = meta.filter(m => m.typ === 'meta_description');\n\nlet content = `# Meta-Vorschläge: ${projekt.thema}\\n\\n`;\n\ncontent += '## Title Tag Vorschläge\\n\\n';\ntitles.forEach((t, i) => {\n  content += `### Option ${i + 1}\\n`;\n  content += `- **Vorschlag:** ${t.vorschlag}\\n`;\n  content += `- **Zeichenlänge:** ${t.vorschlag?.length || 0}\\n\\n`;\n});\n\ncontent += '## Meta Description Vorschläge\\n\\n';\ndescs.forEach((d, i) => {\n  content += `### Option ${i + 1}\\n`;\n  content += `- **Vorschlag:** ${d.vorschlag}\\n`;\n  content += `- **Zeichenlänge:** ${d.vorschlag?.length || 0}\\n\\n`;\n});\n\nreturn [{ json: { content, filename: 'meta-vorschlaege.md' } }];"
+        "jsCode": "const meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst titles = meta.filter(m => m.typ === 'title_tag');\nconst descs = meta.filter(m => m.typ === 'meta_description');\n\nlet content = `# Meta-Vorschläge: ${projekt.thema}\\n\\n`;\n\ncontent += '## Title Tag Vorschläge\\n\\n';\ntitles.forEach((t, i) => {\n  content += `### Option ${i + 1}\\n`;\n  content += `- **Vorschlag:** ${t.vorschlag}\\n`;\n  content += `- **Zeichenlänge:** ${t.vorschlag?.length || 0}\\n\\n`;\n});\n\ncontent += '## Meta Description Vorschläge\\n\\n';\ndescs.forEach((d, i) => {\n  content += `### Option ${i + 1}\\n`;\n  content += `- **Vorschlag:** ${d.vorschlag}\\n`;\n  content += `- **Zeichenlänge:** ${d.vorschlag?.length || 0}\\n\\n`;\n});\n\nconst binaryData = Buffer.from(content, 'utf-8').toString('base64');\nreturn [{\n  json: { content, filename: 'meta-vorschlaege.md' },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: 'text/markdown',\n      fileName: 'meta-vorschlaege.md'\n    }\n  }\n}];"
       },
       "id": "wf8-code-meta",
       "name": "Meta-Vorschläge Datei",
@@ -155,7 +155,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst internalLinks = meta.filter(m => m.typ === 'interner_link');\nconst externalLinks = meta.filter(m => m.typ === 'externer_link');\nconst allLinks = meta.filter(m => m.typ?.includes('link'));\n\nlet content = `# Link-Strategie: ${projekt.thema}\\n\\n`;\n\ncontent += '## Interne Verlinkung\\n\\n';\nif (internalLinks.length > 0) {\n  internalLinks.forEach((l, i) => {\n    content += `${i + 1}. **${l.vorschlag}**\\n`;\n    content += `   - Ziel-URL: ${l.ziel_url || 'N/A'}\\n`;\n    content += `   - Ankertext-Vorschlag: ${l.ankertext || l.vorschlag}\\n\\n`;\n  });\n} else {\n  allLinks.forEach((l, i) => {\n    content += `${i + 1}. **${l.vorschlag}**\\n`;\n    content += `   - Ziel-URL: ${l.ziel_url || 'N/A'}\\n\\n`;\n  });\n}\n\ncontent += '## Externe Verlinkung\\n\\n';\nif (externalLinks.length > 0) {\n  externalLinks.forEach((l, i) => {\n    content += `${i + 1}. **${l.vorschlag}**\\n`;\n    content += `   - Ziel-URL: ${l.ziel_url || 'N/A'}\\n\\n`;\n  });\n} else {\n  content += '_Keine externen Links vorgeschlagen._\\n';\n}\n\nreturn [{ json: { content, filename: 'link-strategie.md' } }];"
+        "jsCode": "const meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst internalLinks = meta.filter(m => m.typ === 'interner_link');\nconst externalLinks = meta.filter(m => m.typ === 'externer_link');\nconst allLinks = meta.filter(m => m.typ?.includes('link'));\n\nlet content = `# Link-Strategie: ${projekt.thema}\\n\\n`;\n\ncontent += '## Interne Verlinkung\\n\\n';\nif (internalLinks.length > 0) {\n  internalLinks.forEach((l, i) => {\n    content += `${i + 1}. **${l.vorschlag}**\\n`;\n    content += `   - Ziel-URL: ${l.ziel_url || 'N/A'}\\n`;\n    content += `   - Ankertext-Vorschlag: ${l.ankertext || l.vorschlag}\\n\\n`;\n  });\n} else {\n  allLinks.forEach((l, i) => {\n    content += `${i + 1}. **${l.vorschlag}**\\n`;\n    content += `   - Ziel-URL: ${l.ziel_url || 'N/A'}\\n\\n`;\n  });\n}\n\ncontent += '## Externe Verlinkung\\n\\n';\nif (externalLinks.length > 0) {\n  externalLinks.forEach((l, i) => {\n    content += `${i + 1}. **${l.vorschlag}**\\n`;\n    content += `   - Ziel-URL: ${l.ziel_url || 'N/A'}\\n\\n`;\n  });\n} else {\n  content += '_Keine externen Links vorgeschlagen._\\n';\n}\n\nconst binaryData = Buffer.from(content, 'utf-8').toString('base64');\nreturn [{\n  json: { content, filename: 'link-strategie.md' },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: 'text/markdown',\n      fileName: 'link-strategie.md'\n    }\n  }\n}];"
       },
       "id": "wf8-code-links",
       "name": "Link-Strategie Datei",
@@ -165,7 +165,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst bildIdeen = meta.filter(m => m.typ === 'bild_idee');\nconst mjPrompts = meta.filter(m => m.typ === 'midjourney_prompt');\n\nlet content = `# Visual-Plan: ${projekt.thema}\\n\\n`;\n\ncontent += '## Bild-Ideen\\n\\n';\nif (bildIdeen.length > 0) {\n  bildIdeen.forEach((b, i) => {\n    content += `### Bild ${i + 1}\\n`;\n    content += `- **Beschreibung:** ${b.vorschlag}\\n`;\n    content += `- **Position im Artikel:** ${b.position || 'N/A'}\\n\\n`;\n  });\n} else {\n  content += '_Keine Bild-Ideen vorhanden._\\n\\n';\n}\n\ncontent += '## Midjourney Prompts\\n\\n';\nif (mjPrompts.length > 0) {\n  mjPrompts.forEach((p, i) => {\n    content += `### Prompt ${i + 1}\\n`;\n    content += '```\\n';\n    content += `${p.vorschlag}\\n`;\n    content += '```\\n\\n';\n  });\n} else {\n  content += '_Keine Midjourney-Prompts vorhanden._\\n\\n';\n}\n\ncontent += '## Verwendungshinweise\\n\\n';\ncontent += '- Alle Bilder sollten mit passendem Alt-Text versehen werden\\n';\ncontent += '- Bildformat: WebP bevorzugt, max. 200KB\\n';\ncontent += '- Midjourney-Parameter: --ar 16:9 --v 6 empfohlen\\n';\n\nreturn [{ json: { content, filename: 'visual-plan.md' } }];"
+        "jsCode": "const meta = $('Meta & Links laden').all().map(i => i.json);\nconst projekt = $('Projekt-Daten laden').first().json;\n\nconst bildIdeen = meta.filter(m => m.typ === 'bild_idee');\nconst mjPrompts = meta.filter(m => m.typ === 'midjourney_prompt');\n\nlet content = `# Visual-Plan: ${projekt.thema}\\n\\n`;\n\ncontent += '## Bild-Ideen\\n\\n';\nif (bildIdeen.length > 0) {\n  bildIdeen.forEach((b, i) => {\n    content += `### Bild ${i + 1}\\n`;\n    content += `- **Beschreibung:** ${b.vorschlag}\\n`;\n    content += `- **Position im Artikel:** ${b.position || 'N/A'}\\n\\n`;\n  });\n} else {\n  content += '_Keine Bild-Ideen vorhanden._\\n\\n';\n}\n\ncontent += '## Midjourney Prompts\\n\\n';\nif (mjPrompts.length > 0) {\n  mjPrompts.forEach((p, i) => {\n    content += `### Prompt ${i + 1}\\n`;\n    content += '```\\n';\n    content += `${p.vorschlag}\\n`;\n    content += '```\\n\\n';\n  });\n} else {\n  content += '_Keine Midjourney-Prompts vorhanden._\\n\\n';\n}\n\ncontent += '## Verwendungshinweise\\n\\n';\ncontent += '- Alle Bilder sollten mit passendem Alt-Text versehen werden\\n';\ncontent += '- Bildformat: WebP bevorzugt, max. 200KB\\n';\ncontent += '- Midjourney-Parameter: --ar 16:9 --v 6 empfohlen\\n';\n\nconst binaryData = Buffer.from(content, 'utf-8').toString('base64');\nreturn [{\n  json: { content, filename: 'visual-plan.md' },\n  binary: {\n    data: {\n      data: binaryData,\n      mimeType: 'text/markdown',\n      fileName: 'visual-plan.md'\n    }\n  }\n}];"
       },
       "id": "wf8-code-visuals",
       "name": "Visual-Plan Datei",
@@ -175,210 +175,159 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://www.googleapis.com/drive/v3/files",
-        "authentication": "oAuth2",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ name: $('Projekt-Daten laden').first().json.projekt_id, mimeType: 'application/vnd.google-apps.folder', parents: ['SEO_Content_Agent_Projekte_Folder_ID'] }) }}"
+        "operation": "createFolder",
+        "name": "={{ $('Projekt-Daten laden').first().json.projekt_id }}",
+        "options": {
+          "folderColorRgb": "",
+          "simplifyOutput": true
+        }
       },
       "id": "wf8-drive-folder",
       "name": "Google Drive: Ordner erstellen",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
       "position": [1000, 300],
       "credentials": {
-        "oAuth2Api": {
-          "id": "",
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
           "name": "Google Drive OAuth2"
         }
       }
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-        "authentication": "oAuth2",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "multipart/related; boundary=boundary"
-            }
-          ]
+        "operation": "upload",
+        "name": "artikel.md",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive: Ordner erstellen').first().json.id }}"
         },
-        "sendBody": true,
-        "specifyBody": "string",
-        "body": "={{ '--boundary\\nContent-Type: application/json\\n\\n' + JSON.stringify({ name: 'artikel.md', parents: [$('Google Drive: Ordner erstellen').first().json.id] }) + '\\n--boundary\\nContent-Type: text/markdown\\n\\n' + $('Markdown-Artikel erstellen').first().json.markdown + '\\n--boundary--' }}"
+        "options": {}
       },
       "id": "wf8-drive-md",
       "name": "Google Drive: MD hochladen",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
       "position": [1350, 200],
       "credentials": {
-        "oAuth2Api": {
-          "id": "",
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
           "name": "Google Drive OAuth2"
         }
       }
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-        "authentication": "oAuth2",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "multipart/related; boundary=boundary"
-            }
-          ]
+        "operation": "upload",
+        "name": "artikel.html",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive: Ordner erstellen').first().json.id }}"
         },
-        "sendBody": true,
-        "specifyBody": "string",
-        "body": "={{ '--boundary\\nContent-Type: application/json\\n\\n' + JSON.stringify({ name: 'artikel.html', parents: [$('Google Drive: Ordner erstellen').first().json.id] }) + '\\n--boundary\\nContent-Type: text/html\\n\\n' + $('HTML-Artikel erstellen').first().json.html + '\\n--boundary--' }}"
+        "options": {}
       },
       "id": "wf8-drive-html",
       "name": "Google Drive: HTML hochladen",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
       "position": [1350, 400],
       "credentials": {
-        "oAuth2Api": {
-          "id": "",
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
           "name": "Google Drive OAuth2"
         }
       }
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-        "authentication": "oAuth2",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "multipart/related; boundary=boundary"
-            }
-          ]
+        "operation": "upload",
+        "name": "analyse-bericht.md",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive: Ordner erstellen').first().json.id }}"
         },
-        "sendBody": true,
-        "specifyBody": "string",
-        "body": "={{ '--boundary\\nContent-Type: application/json\\n\\n' + JSON.stringify({ name: 'analyse-bericht.md', parents: [$('Google Drive: Ordner erstellen').first().json.id] }) + '\\n--boundary\\nContent-Type: text/markdown\\n\\n' + $('Analyse-Bericht erstellen').first().json.bericht + '\\n--boundary--' }}"
+        "options": {}
       },
       "id": "wf8-drive-bericht",
       "name": "Google Drive: Bericht hochladen",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
       "position": [1350, 600],
       "credentials": {
-        "oAuth2Api": {
-          "id": "",
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
           "name": "Google Drive OAuth2"
         }
       }
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-        "authentication": "oAuth2",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "multipart/related; boundary=boundary"
-            }
-          ]
+        "operation": "upload",
+        "name": "meta-vorschlaege.md",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive: Ordner erstellen').first().json.id }}"
         },
-        "sendBody": true,
-        "specifyBody": "string",
-        "body": "={{ '--boundary\\nContent-Type: application/json\\n\\n' + JSON.stringify({ name: 'meta-vorschlaege.md', parents: [$('Google Drive: Ordner erstellen').first().json.id] }) + '\\n--boundary\\nContent-Type: text/markdown\\n\\n' + $('Meta-Vorschläge Datei').first().json.content + '\\n--boundary--' }}"
+        "options": {}
       },
       "id": "wf8-drive-meta",
       "name": "Google Drive: Meta hochladen",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
       "position": [1350, 800],
       "credentials": {
-        "oAuth2Api": {
-          "id": "",
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
           "name": "Google Drive OAuth2"
         }
       }
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-        "authentication": "oAuth2",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "multipart/related; boundary=boundary"
-            }
-          ]
+        "operation": "upload",
+        "name": "link-strategie.md",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive: Ordner erstellen').first().json.id }}"
         },
-        "sendBody": true,
-        "specifyBody": "string",
-        "body": "={{ '--boundary\\nContent-Type: application/json\\n\\n' + JSON.stringify({ name: 'link-strategie.md', parents: [$('Google Drive: Ordner erstellen').first().json.id] }) + '\\n--boundary\\nContent-Type: text/markdown\\n\\n' + $('Link-Strategie Datei').first().json.content + '\\n--boundary--' }}"
+        "options": {}
       },
       "id": "wf8-drive-links",
       "name": "Google Drive: Links hochladen",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
       "position": [1350, 1000],
       "credentials": {
-        "oAuth2Api": {
-          "id": "",
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
           "name": "Google Drive OAuth2"
         }
       }
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-        "authentication": "oAuth2",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "multipart/related; boundary=boundary"
-            }
-          ]
+        "operation": "upload",
+        "name": "visual-plan.md",
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Google Drive: Ordner erstellen').first().json.id }}"
         },
-        "sendBody": true,
-        "specifyBody": "string",
-        "body": "={{ '--boundary\\nContent-Type: application/json\\n\\n' + JSON.stringify({ name: 'visual-plan.md', parents: [$('Google Drive: Ordner erstellen').first().json.id] }) + '\\n--boundary\\nContent-Type: text/markdown\\n\\n' + $('Visual-Plan Datei').first().json.content + '\\n--boundary--' }}"
+        "options": {}
       },
       "id": "wf8-drive-visuals",
       "name": "Google Drive: Visuals hochladen",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
       "position": [1350, 1200],
       "credentials": {
-        "oAuth2Api": {
-          "id": "",
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-oauth2",
           "name": "Google Drive OAuth2"
         }
       }
@@ -418,26 +367,28 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://hooks.slack.com/services/YOUR_WEBHOOK_URL",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#seo-content-agent"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: '🎉 SEO Content Agent Projekt abgeschlossen!\\n\\n📁 Google Drive Ordner: https://drive.google.com/drive/folders/' + $('Google Drive: Ordner erstellen').first().json.id + '\\n\\n📊 QA-Zusammenfassung:\\n' + $('QA-Ergebnisse laden').all().map(q => q.json).map(q => (q.status === 'bestanden' ? '✅' : '⚠️') + ' ' + q.check_typ + ': ' + q.score).join('\\n') }) }}"
+        "text": "={{ 'SEO Content Agent Projekt abgeschlossen!\\n\\nGoogle Drive Ordner: https://drive.google.com/drive/folders/' + $('Google Drive: Ordner erstellen').first().json.id + '\\n\\nQA-Zusammenfassung:\\n' + $('QA-Ergebnisse laden').all().map(q => q.json).map(q => (q.status === 'bestanden' ? 'OK' : 'WARNUNG') + ' ' + q.check_typ + ': ' + q.score).join('\\n') }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
       },
       "id": "wf8-notification",
       "name": "Benachrichtigung: Projekt fertig",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2000, 500]
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2000, 500],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-api-credential",
+          "name": "Slack API"
+        }
+      }
     },
     {
       "parameters": {

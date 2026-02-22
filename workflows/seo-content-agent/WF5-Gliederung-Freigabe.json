@@ -171,41 +171,43 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "content-type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4096,\n  \"system\": \"Du bist ein erfahrener SEO-Content-Stratege. Erstelle eine detaillierte Artikelgliederung basierend auf den folgenden Daten.\\n\\nRegeln:\\n1. PFLICHT-Themen (Commodity Topics) müssen abgedeckt werden\\n2. Unique Angles und Expert Insights priorisieren für Differenzierung\\n3. Semantische Lücken der Wettbewerber als Chance nutzen\\n4. Suchintentionen der Keywords berücksichtigen\\n5. Gliederung im JSON-Format zurückgeben mit: position, ebene (h1/h2/h3), ueberschrift, typ (einleitung/kerninfo/hauptteil/fehler/faq/fazit), basiert_auf, stichpunkte\\n\\nVoice Profile: {{ $json.voiceProfile }}\\nBrand Profile: {{ $json.brandProfile }}\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Erstelle eine SEO-optimierte Artikelgliederung basierend auf folgenden Daten:\\n\\n## Pflicht-Themen (Commodity Topics):\\n{{ JSON.stringify($json.commodityTopics) }}\\n\\n## Unique Angles:\\n{{ JSON.stringify($json.uniqueAngles) }}\\n\\n## Semantische Lücken:\\n{{ JSON.stringify($json.gaps) }}\\n\\n## Keywords:\\n{{ JSON.stringify($json.keywords) }}\\n\\n## Alle User Insights:\\n{{ JSON.stringify($json.allInsights) }}\\n\\n## Sitemap (bestehende Seiten):\\n{{ $json.sitemap }}\\n\\n## Plugin-Empfehlungen:\\n{{ $json.pluginEmpfehlungen }}\\n\\nGib die Gliederung als JSON-Array zurück.\"\n    }\n  ]\n}",
-        "options": {}
+        "prompt": "=Erstelle eine SEO-optimierte Artikelgliederung basierend auf folgenden Daten:\n\n## Pflicht-Themen (Commodity Topics):\n{{ JSON.stringify($json.commodityTopics) }}\n\n## Unique Angles:\n{{ JSON.stringify($json.uniqueAngles) }}\n\n## Semantische Lücken:\n{{ JSON.stringify($json.gaps) }}\n\n## Keywords:\n{{ JSON.stringify($json.keywords) }}\n\n## Alle User Insights:\n{{ JSON.stringify($json.allInsights) }}\n\n## Sitemap (bestehende Seiten):\n{{ $json.sitemap }}\n\n## Plugin-Empfehlungen:\n{{ $json.pluginEmpfehlungen }}\n\nGib die Gliederung als JSON-Array zurück.",
+        "options": {
+          "systemMessage": "Du bist ein erfahrener SEO-Content-Stratege. Erstelle eine detaillierte Artikelgliederung basierend auf den folgenden Daten.\n\nRegeln:\n1. PFLICHT-Themen (Commodity Topics) müssen abgedeckt werden\n2. Unique Angles und Expert Insights priorisieren für Differenzierung\n3. Semantische Lücken der Wettbewerber als Chance nutzen\n4. Suchintentionen der Keywords berücksichtigen\n5. Gliederung im JSON-Format zurückgeben mit: position, ebene (h1/h2/h3), ueberschrift, typ (einleitung/kerninfo/hauptteil/fehler/faq/fazit), basiert_auf, stichpunkte\n\nVoice Profile: {{ $json.voiceProfile }}\nBrand Profile: {{ $json.brandProfile }}"
+        }
       },
       "id": "a1b2c3d4-0001-4000-8000-000000000010",
       "name": "Claude: Gliederung generieren",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
       "position": [1050, 500]
     },
     {
       "parameters": {
-        "jsCode": "const response = $input.first().json;\nconst content = response.content[0].text;\n// Extract JSON from Claude's response\nconst jsonMatch = content.match(/\\[[\\s\\S]*\\]/);\nif (!jsonMatch) {\n  return [{ json: { error: 'Gliederung konnte nicht geparst werden', raw: content } }];\n}\nconst outline = JSON.parse(jsonMatch[0]);\nreturn outline.map((item, idx) => ({\n  json: {\n    position: idx + 1,\n    ebene: item.ebene,\n    ueberschrift: item.ueberschrift,\n    typ: item.typ,\n    basiert_auf: item.basiert_auf || '',\n    stichpunkte: item.stichpunkte || '',\n    freigabe: 'nein'\n  }\n}));"
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "options": {
+          "maxTokensToSample": 4096
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000010-model",
+      "name": "Claude: Gliederung generieren Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [1000, 650],
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-api-credential",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.text;\n// Extract JSON from Claude's response\nconst jsonMatch = content.match(/\\[[\\s\\S]*\\]/);\nif (!jsonMatch) {\n  return [{ json: { error: 'Gliederung konnte nicht geparst werden', raw: content } }];\n}\nconst outline = JSON.parse(jsonMatch[0]);\nreturn outline.map((item, idx) => ({\n  json: {\n    position: idx + 1,\n    ebene: item.ebene,\n    ueberschrift: item.ueberschrift,\n    typ: item.typ,\n    basiert_auf: item.basiert_auf || '',\n    stichpunkte: item.stichpunkte || '',\n    freigabe: 'nein'\n  }\n}));"
       },
       "id": "a1b2c3d4-0001-4000-8000-000000000011",
       "name": "Gliederung parsen",
@@ -269,18 +271,28 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.NOTIFICATION_WEBHOOK_URL }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"text\": \"Die Gliederung wurde erstellt und wartet auf Freigabe.\",\n  \"link\": \"{{ $env.N8N_BASE_URL }}/form/gliederung-freigabe\",\n  \"projekt_id\": \"{{ $json.projekt_id }}\"\n}",
-        "options": {}
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#seo-content-agent"
+        },
+        "text": "=Die Gliederung wurde erstellt und wartet auf Freigabe.\nLink: {{ $env.N8N_BASE_URL }}/form/gliederung-freigabe\nProjekt-ID: {{ $json.projekt_id }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
       },
       "id": "a1b2c3d4-0001-4000-8000-000000000014",
       "name": "Benachrichtigung: Gliederungs-Freigabe",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1950, 500]
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1950, 500],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-api-credential",
+          "name": "Slack API"
+        }
+      }
     },
     {
       "parameters": {
@@ -374,37 +386,39 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "content-type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4096,\n  \"system\": \"Du bist ein erfahrener SEO-Content-Stratege. Du erhältst eine bestehende Gliederung und Korrekturwünsche. Passe die Gliederung entsprechend an und gib sie im gleichen JSON-Format zurück: position, ebene (h1/h2/h3), ueberschrift, typ, basiert_auf, stichpunkte.\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Bitte passe die folgende Gliederung an:\\n\\nKorrekturen:\\n{{ $json.korrekturen }}\\n\\nGib die angepasste Gliederung als JSON-Array zurück.\"\n    }\n  ]\n}",
-        "options": {}
+        "prompt": "=Bitte passe die folgende Gliederung an:\n\nKorrekturen:\n{{ $json.korrekturen }}\n\nGib die angepasste Gliederung als JSON-Array zurück.",
+        "options": {
+          "systemMessage": "Du bist ein erfahrener SEO-Content-Stratege. Du erhältst eine bestehende Gliederung und Korrekturwünsche. Passe die Gliederung entsprechend an und gib sie im gleichen JSON-Format zurück: position, ebene (h1/h2/h3), ueberschrift, typ, basiert_auf, stichpunkte."
+        }
       },
       "id": "a1b2c3d4-0001-4000-8000-000000000018",
       "name": "Claude: Gliederung anpassen",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
       "position": [900, 1100]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "options": {
+          "maxTokensToSample": 4096
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000018-model",
+      "name": "Claude: Gliederung anpassen Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [850, 1250],
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-api-credential",
+          "name": "Anthropic API"
+        }
+      }
     },
     {
       "parameters": {
@@ -478,7 +492,7 @@
     },
     {
       "parameters": {
-        "content": "## WF5: Gliederung & Freigabe\nClaude generiert Outline aus allen Daten (Semantische Analyse, User Insights, Keywords, Profile).\nAnschließend Freigabe-Prozess via Formular.",
+        "content": "## WF5: Gliederung & Freigabe\nAnthropic Chat Model generiert Outline aus allen Daten (Semantische Analyse, User Insights, Keywords, Profile).\nAnschließend Freigabe-Prozess via Formular.",
         "width": 400,
         "height": 200
       },
@@ -502,7 +516,7 @@
     },
     {
       "parameters": {
-        "content": "## Gliederungs-Freigabe\nVia Formular mit Korrekturmöglichkeit. Bei \"Anpassungen nötig\" wird Claude erneut aufgerufen.",
+        "content": "## Gliederungs-Freigabe\nVia Formular mit Korrekturmöglichkeit. Bei \"Anpassungen nötig\" wird Anthropic Chat Model erneut aufgerufen.",
         "width": 350,
         "height": 150
       },
@@ -654,6 +668,17 @@
         ]
       ]
     },
+    "Claude: Gliederung generieren Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude: Gliederung generieren",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Gliederung parsen": {
       "main": [
         [
@@ -733,6 +758,17 @@
           {
             "node": "Angepasste Gliederung speichern",
             "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Gliederung anpassen Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude: Gliederung anpassen",
+            "type": "ai_languageModel",
             "index": 0
           }
         ]

@@ -333,18 +333,28 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"text\": \"SEO Content Agent - WF2 abgeschlossen\\n*Projekt:* {{ $json.projekt_id }}\\n{{ $json.zusammenfassung }}\\n*Keywords:* {{ $json.keywords_analysiert }} | *SERP-Ergebnisse:* {{ $json.serp_ergebnisse }} | *URLs gescrapt:* {{ $json.urls_gescrapt }}\"\n}",
-        "options": {}
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#seo-content-agent"
+        },
+        "text": "={{ 'SEO Content Agent - WF2 abgeschlossen\n*Projekt:* ' + $json.projekt_id + '\n' + $json.zusammenfassung + '\n*Keywords:* ' + $json.keywords_analysiert + ' | *SERP-Ergebnisse:* ' + $json.serp_ergebnisse + ' | *URLs gescrapt:* ' + $json.urls_gescrapt }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
       },
       "id": "a1b2c3d4-0016-4000-8000-000000000016",
       "name": "Benachrichtigung senden",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [4500, 300]
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [4500, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-api-credential",
+          "name": "Slack API"
+        }
+      }
     },
     {
       "parameters": {

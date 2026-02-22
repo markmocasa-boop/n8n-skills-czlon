@@ -247,20 +247,28 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.NOTIFICATION_WEBHOOK_URL || 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL' }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: $json.zusammenfassung, blocks: [{ type: 'section', text: { type: 'mrkdwn', text: '*SEO Content Agent - Keyword-Recherche abgeschlossen*' }}, { type: 'section', text: { type: 'mrkdwn', text: '*Projekt:* ' + $json.thema + '\\n*Projekt-ID:* ' + $json.projekt_id + '\\n*Keywords gefunden:* ' + $json.total_keywords + ' (' + $json.matching_count + ' matching, ' + $json.related_count + ' related)' }}, { type: 'section', text: { type: 'mrkdwn', text: '<' + $json.spreadsheet_url + '|Spreadsheet oeffnen>' }}, { type: 'divider' }, { type: 'section', text: { type: 'mrkdwn', text: '_Naechster Schritt: WF2 - SERP-Analyse & Wettbewerberanalyse_' }}] }) }}",
-        "options": {
-          "timeout": 10000
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#seo-content-agent"
+        },
+        "text": "={{ $json.zusammenfassung }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
         }
       },
       "id": "a1b2c3d4-1001-4000-8000-000000000010",
       "name": "Benachrichtigung senden",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2400, 300]
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2400, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-api-credential",
+          "name": "Slack API"
+        }
+      }
     },
     {
       "parameters": {

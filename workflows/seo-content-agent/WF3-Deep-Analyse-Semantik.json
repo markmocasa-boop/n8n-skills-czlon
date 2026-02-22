@@ -155,41 +155,43 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "={{$env.ANTHROPIC_API_KEY}}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 4096,\n  \"system\": \"Du bist ein SEO-Analyst. Analysiere die Alignment-Matrix und identifiziere Commodity Topics (Themen, die ALLE Top-Wettbewerber abdecken und daher Pflicht sind) sowie potenzielle Differenzierungsmöglichkeiten.\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Analysiere folgende Query-Alignment-Matrix und identifiziere:\\n1. Commodity Topics (Pflicht-Themen, die alle abdecken)\\n2. Differenzierungsmöglichkeiten (Themen mit niedriger Abdeckung)\\n3. Content-Lücken (fehlende Themen)\\n\\nAlignment-Matrix:\\n\" + JSON.stringify($input.all().map(i => i.json), null, 2) + \"\\n\\nAntworte im JSON-Format:\\n{\\\"commodity_topics\\\": [{\\\"thema\\\": \\\"...\\\", \\\"score\\\": 0.0, \\\"empfehlung\\\": \\\"...\\\"}], \\\"differenzierung\\\": [{\\\"thema\\\": \\\"...\\\", \\\"score\\\": 0.0, \\\"empfehlung\\\": \\\"...\\\"}], \\\"luecken\\\": [{\\\"thema\\\": \\\"...\\\", \\\"empfehlung\\\": \\\"...\\\"}]}\"\n    }\n  ]\n}",
-        "options": {}
+        "prompt": "=Analysiere folgende Query-Alignment-Matrix und identifiziere:\n1. Commodity Topics (Pflicht-Themen, die alle abdecken)\n2. Differenzierungsmöglichkeiten (Themen mit niedriger Abdeckung)\n3. Content-Lücken (fehlende Themen)\n\nAlignment-Matrix:\n{{ JSON.stringify($input.all().map(i => i.json), null, 2) }}\n\nAntworte im JSON-Format:\n{\"commodity_topics\": [{\"thema\": \"...\", \"score\": 0.0, \"empfehlung\": \"...\"}], \"differenzierung\": [{\"thema\": \"...\", \"score\": 0.0, \"empfehlung\": \"...\"}], \"luecken\": [{\"thema\": \"...\", \"empfehlung\": \"...\"}]}",
+        "options": {
+          "systemMessage": "Du bist ein SEO-Analyst. Analysiere die Alignment-Matrix und identifiziere Commodity Topics (Themen, die ALLE Top-Wettbewerber abdecken und daher Pflicht sind) sowie potenzielle Differenzierungsmöglichkeiten."
+        }
       },
       "id": "wf3-http-009",
       "name": "Claude: Commodity Topics identifizieren",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
       "position": [1500, 500]
     },
     {
       "parameters": {
-        "jsCode": "const response = $input.first().json;\nconst content = response.content[0].text;\n\n// Parse Claude's JSON response\nlet analysis;\ntry {\n  // Try to extract JSON from the response\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  analysis = JSON.parse(jsonMatch ? jsonMatch[0] : content);\n} catch (e) {\n  return [{\n    json: {\n      analyse_typ: 'commodity_analyse',\n      keyword_oder_thema: 'Parsing-Fehler',\n      score: 0,\n      details: content,\n      kategorie: 'fehler'\n    }\n  }];\n}\n\nconst results = [];\n\n// Commodity Topics\nif (analysis.commodity_topics) {\n  for (const topic of analysis.commodity_topics) {\n    results.push({\n      json: {\n        analyse_typ: 'commodity_topic',\n        keyword_oder_thema: topic.thema,\n        score: Math.round((topic.score || 0) * 100),\n        details: topic.empfehlung,\n        kategorie: 'pflicht'\n      }\n    });\n  }\n}\n\n// Differenzierung\nif (analysis.differenzierung) {\n  for (const diff of analysis.differenzierung) {\n    results.push({\n      json: {\n        analyse_typ: 'differenzierung',\n        keyword_oder_thema: diff.thema,\n        score: Math.round((diff.score || 0) * 100),\n        details: diff.empfehlung,\n        kategorie: 'differenzierung'\n      }\n    });\n  }\n}\n\n// Luecken\nif (analysis.luecken) {\n  for (const luecke of analysis.luecken) {\n    results.push({\n      json: {\n        analyse_typ: 'content_luecke',\n        keyword_oder_thema: luecke.thema,\n        score: 0,\n        details: luecke.empfehlung,\n        kategorie: 'luecke'\n      }\n    });\n  }\n}\n\nreturn results.length > 0 ? results : [{ json: { analyse_typ: 'keine_ergebnisse', keyword_oder_thema: '', score: 0, details: 'Keine Ergebnisse aus Claude-Analyse', kategorie: '' } }];"
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "options": {
+          "maxTokensToSample": 4096
+        }
+      },
+      "id": "wf3-http-009-model",
+      "name": "Claude: Commodity Topics identifizieren Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [1450, 650],
+      "credentials": {
+        "anthropicApi": {
+          "id": "anthropic-api-credential",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst content = response.text;\n\n// Parse Claude's JSON response\nlet analysis;\ntry {\n  // Try to extract JSON from the response\n  const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n  analysis = JSON.parse(jsonMatch ? jsonMatch[0] : content);\n} catch (e) {\n  return [{\n    json: {\n      analyse_typ: 'commodity_analyse',\n      keyword_oder_thema: 'Parsing-Fehler',\n      score: 0,\n      details: content,\n      kategorie: 'fehler'\n    }\n  }];\n}\n\nconst results = [];\n\n// Commodity Topics\nif (analysis.commodity_topics) {\n  for (const topic of analysis.commodity_topics) {\n    results.push({\n      json: {\n        analyse_typ: 'commodity_topic',\n        keyword_oder_thema: topic.thema,\n        score: Math.round((topic.score || 0) * 100),\n        details: topic.empfehlung,\n        kategorie: 'pflicht'\n      }\n    });\n  }\n}\n\n// Differenzierung\nif (analysis.differenzierung) {\n  for (const diff of analysis.differenzierung) {\n    results.push({\n      json: {\n        analyse_typ: 'differenzierung',\n        keyword_oder_thema: diff.thema,\n        score: Math.round((diff.score || 0) * 100),\n        details: diff.empfehlung,\n        kategorie: 'differenzierung'\n      }\n    });\n  }\n}\n\n// Luecken\nif (analysis.luecken) {\n  for (const luecke of analysis.luecken) {\n    results.push({\n      json: {\n        analyse_typ: 'content_luecke',\n        keyword_oder_thema: luecke.thema,\n        score: 0,\n        details: luecke.empfehlung,\n        kategorie: 'luecke'\n      }\n    });\n  }\n}\n\nreturn results.length > 0 ? results : [{ json: { analyse_typ: 'keine_ergebnisse', keyword_oder_thema: '', score: 0, details: 'Keine Ergebnisse aus Claude-Analyse', kategorie: '' } }];"
       },
       "id": "wf3-code-010",
       "name": "Claude-Antwort verarbeiten",
@@ -329,7 +331,7 @@
     },
     {
       "parameters": {
-        "content": "## WF3: Deep Analyse (Semantik)\n\nVoyage AI Embeddings + Claude Commodity Analysis\n\n**Ablauf:**\n1. Keywords & SERP-Content laden\n2. Embedding-Inputs vorbereiten\n3. Voyage AI Embeddings (Query + Document)\n4. Query Alignment Matrix berechnen\n5. Relevanz-Ranking + Commodity Topics\n6. Ergebnisse speichern",
+        "content": "## WF3: Deep Analyse (Semantik)\n\nVoyage AI Embeddings + Anthropic Chat Model Commodity Analysis\n\n**Ablauf:**\n1. Keywords & SERP-Content laden\n2. Embedding-Inputs vorbereiten\n3. Voyage AI Embeddings (Query + Document)\n4. Query Alignment Matrix berechnen\n5. Relevanz-Ranking + Commodity Topics\n6. Ergebnisse speichern",
         "height": 340,
         "width": 360,
         "color": 4
@@ -355,7 +357,7 @@
     },
     {
       "parameters": {
-        "content": "## Claude API Key erforderlich\n\nStelle sicher, dass der Anthropic API Key als Umgebungsvariable `ANTHROPIC_API_KEY` konfiguriert ist.\n\nModell: `claude-sonnet-4-20250514`\n- Commodity Topics identifizieren\n- Differenzierungsanalyse",
+        "content": "## Anthropic Chat Model\n\nVerwendet den nativen n8n Anthropic Chat Model Node mit Credential `Anthropic API`.\n\nModell: `claude-sonnet-4-20250514`\n- Commodity Topics identifizieren\n- Differenzierungsanalyse",
         "height": 260,
         "width": 320,
         "color": 6
@@ -466,6 +468,17 @@
           {
             "node": "Claude-Antwort verarbeiten",
             "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Commodity Topics identifizieren Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude: Commodity Topics identifizieren",
+            "type": "ai_languageModel",
             "index": 0
           }
         ]

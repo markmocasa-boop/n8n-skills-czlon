@@ -232,47 +232,43 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "={{ $credentials.httpHeaderAuth.value }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "content-type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 8000, system: 'Du bist ein AI Humanizer. Deine Aufgabe ist es, KI-generierten Text natürlicher und menschlicher klingen zu lassen, ohne den Inhalt oder die SEO-Optimierung zu verändern. Entferne typische KI-Muster wie: übermäßige Aufzählungen, generische Übergänge (\\'Darüber hinaus\\', \\'Zusammenfassend lässt sich sagen\\'), zu perfekte Satzstrukturen. Behalte den Informationsgehalt bei.', messages: [{ role: 'user', content: $('Artikel zusammenstellen').first().json.fullArticle }] }) }}",
-        "options": {}
+        "prompt": "={{ $('Artikel zusammenstellen').first().json.fullArticle }}",
+        "options": {
+          "systemMessage": "Du bist ein AI Humanizer. Deine Aufgabe ist es, KI-generierten Text natürlicher und menschlicher klingen zu lassen, ohne den Inhalt oder die SEO-Optimierung zu verändern. Entferne typische KI-Muster wie: übermäßige Aufzählungen, generische Übergänge ('Darüber hinaus', 'Zusammenfassend lässt sich sagen'), zu perfekte Satzstrukturen. Behalte den Informationsgehalt bei."
+        }
       },
       "id": "a1b2c3d4-7001-4000-8000-000000000012",
       "name": "Claude: AI Humanizer",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1000, 700],
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [1000, 700]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "options": {
+          "maxTokensToSample": 8000
+        }
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000012-model",
+      "name": "Claude: AI Humanizer Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [950, 850],
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "anthropic-api-credential-id",
-          "name": "Anthropic API Key"
+        "anthropicApi": {
+          "id": "anthropic-api-credential",
+          "name": "Anthropic API"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const response = $('Claude: AI Humanizer').first().json;\nconst humanizedText = response.content[0].text;\n\nreturn [{ json: { content_humanized: humanizedText } }];"
+        "jsCode": "const response = $('Claude: AI Humanizer').first().json;\nconst humanizedText = response.text;\n\nreturn [{ json: { content_humanized: humanizedText } }];"
       },
       "id": "a1b2c3d4-7001-4000-8000-000000000013",
       "name": "Humanized Content verarbeiten",
@@ -282,47 +278,43 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "={{ $credentials.httpHeaderAuth.value }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "content-type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: 'Du bist ein Voice & Brand Consistency Checker. Vergleiche den Artikel mit dem Voice Profile und gib Feedback: Welche Abschnitte passen zur Stimme? Wo weicht der Text ab? Schlage konkrete Umformulierungen vor.', messages: [{ role: 'user', content: 'Artikel:\\n' + $('Artikel zusammenstellen').first().json.fullArticle + '\\n\\nVoice Profile:\\n' + $('Artikel zusammenstellen').first().json.voiceProfile }] }) }}",
-        "options": {}
+        "prompt": "=Artikel:\n{{ $('Artikel zusammenstellen').first().json.fullArticle }}\n\nVoice Profile:\n{{ $('Artikel zusammenstellen').first().json.voiceProfile }}",
+        "options": {
+          "systemMessage": "Du bist ein Voice & Brand Consistency Checker. Vergleiche den Artikel mit dem Voice Profile und gib Feedback: Welche Abschnitte passen zur Stimme? Wo weicht der Text ab? Schlage konkrete Umformulierungen vor."
+        }
       },
       "id": "a1b2c3d4-7001-4000-8000-000000000014",
       "name": "Claude: Voice Checker",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1000, 950],
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [1000, 950]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "options": {
+          "maxTokensToSample": 4000
+        }
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000014-model",
+      "name": "Claude: Voice Checker Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [950, 1100],
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "anthropic-api-credential-id",
-          "name": "Anthropic API Key"
+        "anthropicApi": {
+          "id": "anthropic-api-credential",
+          "name": "Anthropic API"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const response = $('Claude: Voice Checker').first().json;\nconst voiceCheckResult = response.content[0].text;\n\nreturn [{ json: {\n  check_typ: 'voice_check',\n  thema: 'Brand Voice Consistency',\n  status: 'geprüft',\n  details: voiceCheckResult,\n  score: 0\n} }];"
+        "jsCode": "const response = $('Claude: Voice Checker').first().json;\nconst voiceCheckResult = response.text;\n\nreturn [{ json: {\n  check_typ: 'voice_check',\n  thema: 'Brand Voice Consistency',\n  status: 'geprüft',\n  details: voiceCheckResult,\n  score: 0\n} }];"
       },
       "id": "a1b2c3d4-7001-4000-8000-000000000015",
       "name": "Voice Check Ergebnis",
@@ -332,47 +324,43 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "={{ $credentials.httpHeaderAuth.value }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "content-type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: 'Du bist ein Meta-Tag-Optimizer. Erstelle 3-5 Varianten für Title-Tags (max 60 Zeichen) und Meta-Descriptions (max 155 Zeichen). Optimiere für CTR und Keyword-Relevanz. Gib die Ergebnisse als JSON-Array zurück mit Feldern: typ (title_tag/meta_description), vorschlag.', messages: [{ role: 'user', content: 'Artikel-Titel: ' + ($('Artikel zusammenstellen').first().json.gliederung[0]?.ueberschrift || 'Artikel') + '\\nKeywords: ' + $('Artikel zusammenstellen').first().json.analyse.map(a => a.keyword_oder_thema).join(', ') + '\\nArtikel-Auszug: ' + $('Artikel zusammenstellen').first().json.fullArticle.substring(0, 2000) }] }) }}",
-        "options": {}
+        "prompt": "=Artikel-Titel: {{ $('Artikel zusammenstellen').first().json.gliederung[0]?.ueberschrift || 'Artikel' }}\nKeywords: {{ $('Artikel zusammenstellen').first().json.analyse.map(a => a.keyword_oder_thema).join(', ') }}\nArtikel-Auszug: {{ $('Artikel zusammenstellen').first().json.fullArticle.substring(0, 2000) }}",
+        "options": {
+          "systemMessage": "Du bist ein Meta-Tag-Optimizer. Erstelle 3-5 Varianten für Title-Tags (max 60 Zeichen) und Meta-Descriptions (max 155 Zeichen). Optimiere für CTR und Keyword-Relevanz. Gib die Ergebnisse als JSON-Array zurück mit Feldern: typ (title_tag/meta_description), vorschlag."
+        }
       },
       "id": "a1b2c3d4-7001-4000-8000-000000000016",
       "name": "Claude: Meta Optimizer",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1000, 1200],
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [1000, 1200]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "options": {
+          "maxTokensToSample": 2000
+        }
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000016-model",
+      "name": "Claude: Meta Optimizer Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [950, 1350],
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "anthropic-api-credential-id",
-          "name": "Anthropic API Key"
+        "anthropicApi": {
+          "id": "anthropic-api-credential",
+          "name": "Anthropic API"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const response = $('Claude: Meta Optimizer').first().json;\nconst text = response.content[0].text;\n\nlet metaSuggestions = [];\ntry {\n  const jsonMatch = text.match(/\\[([\\s\\S]*?)\\]/);\n  if (jsonMatch) {\n    metaSuggestions = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  metaSuggestions = [{ typ: 'meta_error', vorschlag: text }];\n}\n\nreturn metaSuggestions.map(m => ({ json: {\n  typ: m.typ || 'meta',\n  vorschlag: m.vorschlag || '',\n  position_im_text: '',\n  ziel_url: ''\n} }));"
+        "jsCode": "const response = $('Claude: Meta Optimizer').first().json;\nconst text = response.text;\n\nlet metaSuggestions = [];\ntry {\n  const jsonMatch = text.match(/\\[([\\s\\S]*?)\\]/);\n  if (jsonMatch) {\n    metaSuggestions = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  metaSuggestions = [{ typ: 'meta_error', vorschlag: text }];\n}\n\nreturn metaSuggestions.map(m => ({ json: {\n  typ: m.typ || 'meta',\n  vorschlag: m.vorschlag || '',\n  position_im_text: '',\n  ziel_url: ''\n} }));"
       },
       "id": "a1b2c3d4-7001-4000-8000-000000000017",
       "name": "Meta-Vorschläge verarbeiten",
@@ -382,47 +370,43 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "={{ $credentials.httpHeaderAuth.value }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "content-type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: 'Du bist ein interner Link-Stratege. Analysiere den Artikel und die Sitemap. Schlage interne Links vor: welche bestehenden Seiten sollten AUF diesen Artikel verlinken, und welche Links sollten AUS diesem Artikel heraus gesetzt werden. Gib Ergebnisse als JSON-Array: typ (interner_link_im_text/interner_link_zu_text), vorschlag, position_im_text, ziel_url.', messages: [{ role: 'user', content: 'Artikel:\\n' + $('Artikel zusammenstellen').first().json.fullArticle.substring(0, 4000) + '\\n\\nSitemap:\\n' + $('Artikel zusammenstellen').first().json.sitemap }] }) }}",
-        "options": {}
+        "prompt": "=Artikel:\n{{ $('Artikel zusammenstellen').first().json.fullArticle.substring(0, 4000) }}\n\nSitemap:\n{{ $('Artikel zusammenstellen').first().json.sitemap }}",
+        "options": {
+          "systemMessage": "Du bist ein interner Link-Stratege. Analysiere den Artikel und die Sitemap. Schlage interne Links vor: welche bestehenden Seiten sollten AUF diesen Artikel verlinken, und welche Links sollten AUS diesem Artikel heraus gesetzt werden. Gib Ergebnisse als JSON-Array: typ (interner_link_im_text/interner_link_zu_text), vorschlag, position_im_text, ziel_url."
+        }
       },
       "id": "a1b2c3d4-7001-4000-8000-000000000018",
       "name": "Claude: Link Strategist",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1000, 1450],
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [1000, 1450]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "options": {
+          "maxTokensToSample": 3000
+        }
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000018-model",
+      "name": "Claude: Link Strategist Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [950, 1600],
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "anthropic-api-credential-id",
-          "name": "Anthropic API Key"
+        "anthropicApi": {
+          "id": "anthropic-api-credential",
+          "name": "Anthropic API"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const response = $('Claude: Link Strategist').first().json;\nconst text = response.content[0].text;\n\nlet linkSuggestions = [];\ntry {\n  const jsonMatch = text.match(/\\[([\\s\\S]*?)\\]/);\n  if (jsonMatch) {\n    linkSuggestions = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  linkSuggestions = [{ typ: 'link_error', vorschlag: text }];\n}\n\nreturn linkSuggestions.map(l => ({ json: {\n  typ: l.typ || 'interner_link',\n  vorschlag: l.vorschlag || '',\n  position_im_text: l.position_im_text || '',\n  ziel_url: l.ziel_url || ''\n} }));"
+        "jsCode": "const response = $('Claude: Link Strategist').first().json;\nconst text = response.text;\n\nlet linkSuggestions = [];\ntry {\n  const jsonMatch = text.match(/\\[([\\s\\S]*?)\\]/);\n  if (jsonMatch) {\n    linkSuggestions = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  linkSuggestions = [{ typ: 'link_error', vorschlag: text }];\n}\n\nreturn linkSuggestions.map(l => ({ json: {\n  typ: l.typ || 'interner_link',\n  vorschlag: l.vorschlag || '',\n  position_im_text: l.position_im_text || '',\n  ziel_url: l.ziel_url || ''\n} }));"
       },
       "id": "a1b2c3d4-7001-4000-8000-000000000019",
       "name": "Link-Vorschläge verarbeiten",
@@ -432,47 +416,43 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "={{ $credentials.httpHeaderAuth.value }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "content-type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: 'Du bist ein Visual Content Planner. Analysiere den Artikel und schlage Bilder, Infografiken und visuelle Elemente vor. Erstelle für jedes Bild einen Midjourney-Prompt. Gib Ergebnisse als JSON-Array: typ (bild_idee/midjourney_prompt), vorschlag, position_im_text.', messages: [{ role: 'user', content: $('Artikel zusammenstellen').first().json.fullArticle }] }) }}",
-        "options": {}
+        "prompt": "={{ $('Artikel zusammenstellen').first().json.fullArticle }}",
+        "options": {
+          "systemMessage": "Du bist ein Visual Content Planner. Analysiere den Artikel und schlage Bilder, Infografiken und visuelle Elemente vor. Erstelle für jedes Bild einen Midjourney-Prompt. Gib Ergebnisse als JSON-Array: typ (bild_idee/midjourney_prompt), vorschlag, position_im_text."
+        }
       },
       "id": "a1b2c3d4-7001-4000-8000-000000000020",
       "name": "Claude: Visual Planner",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1000, 1700],
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [1000, 1700]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-20250514"
+        },
+        "options": {
+          "maxTokensToSample": 3000
+        }
+      },
+      "id": "a1b2c3d4-7001-4000-8000-000000000020-model",
+      "name": "Claude: Visual Planner Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.2,
+      "position": [950, 1850],
       "credentials": {
-        "httpHeaderAuth": {
-          "id": "anthropic-api-credential-id",
-          "name": "Anthropic API Key"
+        "anthropicApi": {
+          "id": "anthropic-api-credential",
+          "name": "Anthropic API"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const response = $('Claude: Visual Planner').first().json;\nconst text = response.content[0].text;\n\nlet visualSuggestions = [];\ntry {\n  const jsonMatch = text.match(/\\[([\\s\\S]*?)\\]/);\n  if (jsonMatch) {\n    visualSuggestions = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  visualSuggestions = [{ typ: 'visual_error', vorschlag: text }];\n}\n\nreturn visualSuggestions.map(v => ({ json: {\n  typ: v.typ || 'bild_idee',\n  vorschlag: v.vorschlag || '',\n  position_im_text: v.position_im_text || '',\n  ziel_url: ''\n} }));"
+        "jsCode": "const response = $('Claude: Visual Planner').first().json;\nconst text = response.text;\n\nlet visualSuggestions = [];\ntry {\n  const jsonMatch = text.match(/\\[([\\s\\S]*?)\\]/);\n  if (jsonMatch) {\n    visualSuggestions = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  visualSuggestions = [{ typ: 'visual_error', vorschlag: text }];\n}\n\nreturn visualSuggestions.map(v => ({ json: {\n  typ: v.typ || 'bild_idee',\n  vorschlag: v.vorschlag || '',\n  position_im_text: v.position_im_text || '',\n  ziel_url: ''\n} }));"
       },
       "id": "a1b2c3d4-7001-4000-8000-000000000021",
       "name": "Visual-Plan verarbeiten",
@@ -637,7 +617,7 @@
     },
     {
       "parameters": {
-        "content": "## WF7: QA & Sub-Agenten\n### 5 spezialisierte Claude Sub-Agents\n\n- **Sub-Agent 1:** AI Humanizer\n- **Sub-Agent 2:** Voice Checker\n- **Sub-Agent 3:** Meta Optimizer\n- **Sub-Agent 4:** Link Strategist\n- **Sub-Agent 5:** Visual Planner\n\nAlle Sub-Agents laufen parallel nach dem Zusammenstellen des Artikels.",
+        "content": "## WF7: QA & Sub-Agenten\n### 5 spezialisierte Claude Sub-Agents\n\n- **Sub-Agent 1:** AI Humanizer\n- **Sub-Agent 2:** Voice Checker\n- **Sub-Agent 3:** Meta Optimizer\n- **Sub-Agent 4:** Link Strategist\n- **Sub-Agent 5:** Visual Planner\n\nAlle Sub-Agents nutzen den Anthropic Chat Model Node und laufen parallel nach dem Zusammenstellen des Artikels.",
         "width": 400,
         "height": 200
       },
@@ -910,6 +890,61 @@
       "main": [
         [
           { "node": "Projekt-Status updaten", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Claude: AI Humanizer Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude: AI Humanizer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Voice Checker Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude: Voice Checker",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Meta Optimizer Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude: Meta Optimizer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Link Strategist Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude: Link Strategist",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude: Visual Planner Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Claude: Visual Planner",
+            "type": "ai_languageModel",
+            "index": 0
+          }
         ]
       ]
     }

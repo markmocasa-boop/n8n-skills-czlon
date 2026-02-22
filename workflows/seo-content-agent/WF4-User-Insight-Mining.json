@@ -256,18 +256,28 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $json.notification_webhook_url || '' }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ \"message\": \"User Insight Mining abgeschlossen! Bitte Expert Input ausfüllen.\", \"form_link\": $json.expert_form_url || '', \"projekt_id\": $json.projekt_id || '' }) }}",
-        "options": {}
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#seo-content-agent"
+        },
+        "text": "={{ 'User Insight Mining abgeschlossen! Bitte Expert Input ausfüllen.\nForm-Link: ' + ($json.expert_form_url || '') + '\nProjekt-ID: ' + ($json.projekt_id || '') }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
       },
       "id": "wf4-node-15",
       "name": "Benachrichtigung: Expert Input Form",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2700, 350]
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2700, 350],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-api-credential",
+          "name": "Slack API"
+        }
+      }
     },
     {
       "parameters": {

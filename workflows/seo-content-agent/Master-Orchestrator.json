@@ -244,26 +244,28 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://hooks.slack.com/services/YOUR_WEBHOOK_URL",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "#seo-content-agent"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: '⚠️ SEO Content Agent FEHLER!\\n\\nWorkflow: ' + $json.workflow_name + '\\nNode: ' + $json.fehler_node + '\\nFehler: ' + $json.fehler_nachricht + '\\nZeitpunkt: ' + $json.zeitpunkt + '\\nExecution ID: ' + $json.execution_id + '\\n\\nBitte umgehend prüfen!' }) }}"
+        "text": "={{ 'SEO Content Agent FEHLER!\n\nWorkflow: ' + $json.workflow_name + '\nNode: ' + $json.fehler_node + '\nFehler: ' + $json.fehler_nachricht + '\nZeitpunkt: ' + $json.zeitpunkt + '\nExecution ID: ' + $json.execution_id + '\n\nBitte umgehend prüfen!' }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
       },
       "id": "master-error-notify",
       "name": "Fehler-Benachrichtigung",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [600, 800]
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [600, 800],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-api-credential",
+          "name": "Slack API"
+        }
+      }
     },
     {
       "parameters": {
