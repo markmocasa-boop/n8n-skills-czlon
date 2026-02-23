@@ -1,0 +1,217 @@
+{
+  "name": "SEO Scorecard — Sub-WF 3: DataForSEO Keyword-Tracking",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "swf3-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nreturn [{\n  json: {\n    keywords: input.keywords || [],\n    location_code: input.location_code || 2276,\n    language_code: input.language_code || 'de',\n    se_domain: input.se_domain || 'google.de',\n    website_url: input.website_url || '',\n    previous_data: input.previous_data || {}\n  }\n}];"
+      },
+      "id": "swf3-init",
+      "name": "Parameter vorbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 400]
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "swf3-batch",
+      "name": "Keywords in Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [600, 400],
+      "notes": "Keywords in Gruppen von 5 aufteilen (DataForSEO Rate Limiting)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const init = $('Parameter vorbereiten').first().json;\nconst keywords = init.keywords;\n\n// Keywords als einzelne Items ausgeben\nreturn keywords.map(kw => ({\n  json: {\n    keyword: kw.keyword || kw,\n    target_url: kw.target_url || kw.ziel_url || '',\n    priority: kw.priority || kw.prioritaet || 'Mittel',\n    location_code: init.location_code,\n    language_code: init.language_code,\n    se_domain: init.se_domain,\n    website_url: init.website_url\n  }\n}));"
+      },
+      "id": "swf3-prepare-keywords",
+      "name": "Keywords aufbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=[\n  {\n    \"keyword\": \"{{ $json.keyword }}\",\n    \"location_code\": {{ $json.location_code }},\n    \"language_code\": \"{{ $json.language_code }}\",\n    \"depth\": 30,\n    \"se_domain\": \"{{ $json.se_domain }}\"\n  }\n]",
+        "options": {}
+      },
+      "id": "swf3-serp",
+      "name": "DataForSEO SERP Abfrage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "",
+          "name": "DataForSEO API"
+        }
+      },
+      "notes": "SERP-Ergebnisse fuer einzelnes Keyword abrufen"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=[\n  {\n    \"keywords\": [\"{{ $json.keyword }}\"],\n    \"location_code\": {{ $json.location_code }},\n    \"language_code\": \"{{ $json.language_code }}\"\n  }\n]",
+        "options": {}
+      },
+      "id": "swf3-volume",
+      "name": "DataForSEO Suchvolumen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 500],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "",
+          "name": "DataForSEO API"
+        }
+      },
+      "notes": "Suchvolumen, CPC, Competition fuer Keyword"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.dataforseo.com/v3/dataforseo_labs/google/related_keywords/live",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=[\n  {\n    \"keyword\": \"{{ $json.keyword }}\",\n    \"location_code\": {{ $json.location_code }},\n    \"language_code\": \"{{ $json.language_code }}\",\n    \"limit\": 5\n  }\n]",
+        "options": {}
+      },
+      "id": "swf3-related",
+      "name": "DataForSEO Related Keywords",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 700],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "",
+          "name": "DataForSEO API"
+        }
+      },
+      "notes": "Related & Suggested Keywords mit Volumen"
+    },
+    {
+      "parameters": {
+        "jsCode": "// SERP, Volumen und Related Keywords zusammenfuehren\nconst keyword = $('Keywords in Batches').first().json.keyword || $input.first().json.keyword;\nconst targetUrl = $('Keywords in Batches').first().json.target_url || '';\nconst websiteUrl = $('Parameter vorbereiten').first().json.website_url;\nconst previousData = $('Parameter vorbereiten').first().json.previous_data || {};\n\n// SERP Daten parsen\nlet currentPosition = null;\nlet serpFeatures = [];\nlet top3Serp = [];\nlet rankingUrl = '';\n\ntry {\n  const serpResult = $('DataForSEO SERP Abfrage').first().json;\n  const tasks = serpResult.tasks || [];\n  if (tasks.length > 0 && tasks[0].result) {\n    const result = tasks[0].result[0];\n    const items = result.items || [];\n    \n    // SERP Features sammeln\n    serpFeatures = (result.item_types || []).filter(t => t !== 'organic');\n    \n    // Position der eigenen Domain finden\n    for (const item of items) {\n      if (item.type === 'organic') {\n        // Top 3 sammeln\n        if (item.rank_absolute <= 3) {\n          top3Serp.push({\n            position: item.rank_absolute,\n            title: item.title || '',\n            url: item.url || ''\n          });\n        }\n        // Eigene Domain finden\n        if (websiteUrl && item.url && item.url.includes(websiteUrl.replace(/https?:\\/\\//, '').replace(/\\/$/, ''))) {\n          currentPosition = item.rank_absolute;\n          rankingUrl = item.url;\n        }\n      }\n    }\n  }\n} catch(e) {}\n\n// Suchvolumen parsen\nlet searchVolume = 0, cpc = 0, competition = 0;\ntry {\n  const volResult = $('DataForSEO Suchvolumen').first().json;\n  const tasks = volResult.tasks || [];\n  if (tasks.length > 0 && tasks[0].result) {\n    const kw = tasks[0].result[0];\n    searchVolume = kw.search_volume || 0;\n    cpc = kw.cpc || 0;\n    competition = kw.competition || 0;\n  }\n} catch(e) {}\n\n// Related Keywords parsen\nconst relatedKeywords = [];\ntry {\n  const relResult = $('DataForSEO Related Keywords').first().json;\n  const tasks = relResult.tasks || [];\n  if (tasks.length > 0 && tasks[0].result) {\n    const items = tasks[0].result[0].items || [];\n    for (const item of items.slice(0, 5)) {\n      relatedKeywords.push({\n        keyword: item.keyword_data?.keyword || item.keyword || '',\n        volume: item.keyword_data?.keyword_info?.search_volume || item.search_volume || 0\n      });\n    }\n  }\n} catch(e) {}\n\n// Vorwochen-Vergleich\nconst prevPosition = previousData[keyword]?.position || null;\nconst positionDelta = (prevPosition !== null && currentPosition !== null) ? (prevPosition - currentPosition) : 0;\n\nreturn [{\n  json: {\n    keyword: keyword,\n    target_url: targetUrl,\n    current_position: currentPosition,\n    previous_position: prevPosition,\n    position_delta: positionDelta,\n    search_volume: searchVolume,\n    cpc: cpc,\n    competition: competition,\n    serp_features: serpFeatures,\n    ranking_url: rankingUrl,\n    top3_serp: top3Serp,\n    related_keywords: relatedKeywords\n  }\n}];"
+      },
+      "id": "swf3-merge-keyword",
+      "name": "Keyword-Daten zusammenfuehren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 500],
+      "notes": "SERP + Volumen + Related fuer ein Keyword zusammenfuehren"
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "swf3-wait",
+      "name": "Rate Limit Pause",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1500, 400],
+      "notes": "1 Sekunde Pause zwischen Batches"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Alle Keyword-Ergebnisse sammeln und Summary erstellen\nconst allKeywords = $input.all().map(i => i.json);\n\nlet keywordsTop3 = 0, keywordsTop10 = 0, keywordsTop20 = 0;\nlet keywordsImproved = 0, keywordsDeclined = 0, keywordsUnchanged = 0;\nlet totalPosition = 0, positionCount = 0;\n\nfor (const kw of allKeywords) {\n  if (kw.current_position !== null) {\n    if (kw.current_position <= 3) keywordsTop3++;\n    if (kw.current_position <= 10) keywordsTop10++;\n    if (kw.current_position <= 20) keywordsTop20++;\n    totalPosition += kw.current_position;\n    positionCount++;\n  }\n  if (kw.position_delta > 0) keywordsImproved++;\n  else if (kw.position_delta < 0) keywordsDeclined++;\n  else keywordsUnchanged++;\n}\n\n// Kalenderwoche berechnen\nconst now = new Date();\nconst dayNum = now.getUTCDay() || 7;\nnow.setUTCDate(now.getUTCDate() + 4 - dayNum);\nconst yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));\nconst weekNo = Math.ceil((((now - yearStart) / 86400000) + 1) / 7);\nconst kw = `${now.getUTCFullYear()}-KW${String(weekNo).padStart(2, '0')}`;\n\nreturn [{\n  json: {\n    subworkflow: 'keywords_seo',\n    kalenderwoche: kw,\n    status: 'success',\n    data: {\n      keywords: allKeywords,\n      summary: {\n        avg_position: positionCount > 0 ? Math.round((totalPosition / positionCount) * 10) / 10 : null,\n        keywords_top3: keywordsTop3,\n        keywords_top10: keywordsTop10,\n        keywords_top20: keywordsTop20,\n        keywords_improved: keywordsImproved,\n        keywords_declined: keywordsDeclined,\n        keywords_unchanged: keywordsUnchanged,\n        total_tracked: allKeywords.length\n      }\n    }\n  }\n}];"
+      },
+      "id": "swf3-summary",
+      "name": "Gesamt-Summary erstellen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 400],
+      "notes": "Alle Keywords aggregieren und Summary mit Rankings-Verteilung erstellen"
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [{ "node": "Parameter vorbereiten", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parameter vorbereiten": {
+      "main": [
+        [{ "node": "Keywords aufbereiten", "type": "main", "index": 0 }]
+      ]
+    },
+    "Keywords aufbereiten": {
+      "main": [
+        [{ "node": "Keywords in Batches", "type": "main", "index": 0 }]
+      ]
+    },
+    "Keywords in Batches": {
+      "main": [
+        [
+          { "node": "DataForSEO SERP Abfrage", "type": "main", "index": 0 },
+          { "node": "DataForSEO Suchvolumen", "type": "main", "index": 0 },
+          { "node": "DataForSEO Related Keywords", "type": "main", "index": 0 }
+        ],
+        [{ "node": "Gesamt-Summary erstellen", "type": "main", "index": 0 }]
+      ]
+    },
+    "DataForSEO SERP Abfrage": {
+      "main": [
+        [{ "node": "Keyword-Daten zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "DataForSEO Suchvolumen": {
+      "main": [
+        [{ "node": "Keyword-Daten zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "DataForSEO Related Keywords": {
+      "main": [
+        [{ "node": "Keyword-Daten zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Keyword-Daten zusammenfuehren": {
+      "main": [
+        [{ "node": "Rate Limit Pause", "type": "main", "index": 0 }]
+      ]
+    },
+    "Rate Limit Pause": {
+      "main": [
+        [{ "node": "Keywords in Batches", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "SEO Scorecard" },
+    { "name": "Sub-Workflow" }
+  ],
+  "meta": {
+    "instanceId": "",
+    "templateId": "seo-scorecard-subwf3"
+  }
+}

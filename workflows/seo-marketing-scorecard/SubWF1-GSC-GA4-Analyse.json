@@ -1,0 +1,331 @@
+{
+  "name": "SEO Scorecard — Sub-WF 1: GSC + GA4 Analyse",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "swf1-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\n// GSC-Daten haben 2-3 Tage Verzögerung\n// date_from: Montag vor 10 Tagen\n// date_to: Sonntag vor 3 Tagen\nconst dateFrom = input.date_from;\nconst dateTo = input.date_to;\nconst propertyUrl = input.property_url;\nconst ga4PropertyId = input.ga4_property_id;\n\n// Kalenderwoche berechnen\nconst d = new Date(dateFrom);\nconst dayNum = d.getUTCDay() || 7;\nd.setUTCDate(d.getUTCDate() + 4 - dayNum);\nconst yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));\nconst weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);\nconst kw = `${d.getUTCFullYear()}-KW${String(weekNo).padStart(2, '0')}`;\n\nreturn [{\n  json: {\n    property_url: propertyUrl,\n    ga4_property_id: ga4PropertyId,\n    date_from: dateFrom,\n    date_to: dateTo,\n    kalenderwoche: kw\n  }\n}];"
+      },
+      "id": "swf1-init",
+      "name": "Parameter vorbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/webmasters/v3/sites/{{ encodeURIComponent($json.property_url) }}/searchAnalytics/query",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"startDate\": \"{{ $json.date_from }}\",\n  \"endDate\": \"{{ $json.date_to }}\",\n  \"dimensions\": [\"date\"],\n  \"rowLimit\": 25000,\n  \"aggregationType\": \"auto\"\n}",
+        "options": {}
+      },
+      "id": "swf1-gsc-total",
+      "name": "GSC Gesamtperformance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 100],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "",
+          "name": "Google Search Console OAuth2"
+        }
+      },
+      "notes": "GSC: Klicks, Impressionen, CTR, Position pro Tag"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/webmasters/v3/sites/{{ encodeURIComponent($('Parameter vorbereiten').first().json.property_url) }}/searchAnalytics/query",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"startDate\": \"{{ $('Parameter vorbereiten').first().json.date_from }}\",\n  \"endDate\": \"{{ $('Parameter vorbereiten').first().json.date_to }}\",\n  \"dimensions\": [\"page\"],\n  \"rowLimit\": 10,\n  \"aggregationType\": \"auto\"\n}",
+        "options": {}
+      },
+      "id": "swf1-gsc-pages",
+      "name": "GSC Top 10 Seiten",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 300],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "",
+          "name": "Google Search Console OAuth2"
+        }
+      },
+      "notes": "GSC: Top 10 Seiten nach Klicks"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/webmasters/v3/sites/{{ encodeURIComponent($('Parameter vorbereiten').first().json.property_url) }}/searchAnalytics/query",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"startDate\": \"{{ $('Parameter vorbereiten').first().json.date_from }}\",\n  \"endDate\": \"{{ $('Parameter vorbereiten').first().json.date_to }}\",\n  \"dimensions\": [\"device\"],\n  \"aggregationType\": \"auto\"\n}",
+        "options": {}
+      },
+      "id": "swf1-gsc-devices",
+      "name": "GSC Geraete-Verteilung",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 500],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "",
+          "name": "Google Search Console OAuth2"
+        }
+      },
+      "notes": "GSC: Verteilung Desktop/Mobile/Tablet"
+    },
+    {
+      "parameters": {
+        "propertyId": {
+          "__rl": true,
+          "value": "={{ $('Parameter vorbereiten').first().json.ga4_property_id }}",
+          "mode": "id"
+        },
+        "dateRange": "custom",
+        "startDate": "={{ $('Parameter vorbereiten').first().json.date_from }}",
+        "endDate": "={{ $('Parameter vorbereiten').first().json.date_to }}",
+        "metricsGA4": {
+          "metricValues": [
+            { "listName": "sessions" },
+            { "listName": "totalUsers" },
+            { "listName": "newUsers" }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "swf1-ga4-sessions",
+      "name": "GA4 Sessions & Users",
+      "type": "n8n-nodes-base.googleAnalytics",
+      "typeVersion": 2,
+      "position": [600, 700],
+      "credentials": {
+        "googleAnalyticsOAuth2": {
+          "id": "",
+          "name": "Google Analytics OAuth2"
+        }
+      },
+      "notes": "GA4: Sessions, Users, New Users"
+    },
+    {
+      "parameters": {
+        "propertyId": {
+          "__rl": true,
+          "value": "={{ $('Parameter vorbereiten').first().json.ga4_property_id }}",
+          "mode": "id"
+        },
+        "dateRange": "custom",
+        "startDate": "={{ $('Parameter vorbereiten').first().json.date_from }}",
+        "endDate": "={{ $('Parameter vorbereiten').first().json.date_to }}",
+        "metricsGA4": {
+          "metricValues": [
+            { "listName": "conversions" }
+          ]
+        },
+        "dimensionsGA4": {
+          "dimensionValues": [
+            { "listName": "sessionSource" },
+            { "listName": "sessionMedium" }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "swf1-ga4-conversions",
+      "name": "GA4 Conversions nach Quelle",
+      "type": "n8n-nodes-base.googleAnalytics",
+      "typeVersion": 2,
+      "position": [600, 900],
+      "credentials": {
+        "googleAnalyticsOAuth2": {
+          "id": "",
+          "name": "Google Analytics OAuth2"
+        }
+      },
+      "notes": "GA4: Conversions aufgeschluesselt nach Source/Medium"
+    },
+    {
+      "parameters": {
+        "propertyId": {
+          "__rl": true,
+          "value": "={{ $('Parameter vorbereiten').first().json.ga4_property_id }}",
+          "mode": "id"
+        },
+        "dateRange": "custom",
+        "startDate": "={{ $('Parameter vorbereiten').first().json.date_from }}",
+        "endDate": "={{ $('Parameter vorbereiten').first().json.date_to }}",
+        "metricsGA4": {
+          "metricValues": [
+            { "listName": "sessions" }
+          ]
+        },
+        "dimensionsGA4": {
+          "dimensionValues": [
+            { "listName": "browser" }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "swf1-ga4-browsers",
+      "name": "GA4 Browser-Verteilung",
+      "type": "n8n-nodes-base.googleAnalytics",
+      "typeVersion": 2,
+      "position": [600, 1100],
+      "credentials": {
+        "googleAnalyticsOAuth2": {
+          "id": "",
+          "name": "Google Analytics OAuth2"
+        }
+      },
+      "notes": "GA4: Browser-Verteilung"
+    },
+    {
+      "parameters": {
+        "propertyId": {
+          "__rl": true,
+          "value": "={{ $('Parameter vorbereiten').first().json.ga4_property_id }}",
+          "mode": "id"
+        },
+        "dateRange": "custom",
+        "startDate": "={{ $('Parameter vorbereiten').first().json.date_from }}",
+        "endDate": "={{ $('Parameter vorbereiten').first().json.date_to }}",
+        "metricsGA4": {
+          "metricValues": [
+            { "listName": "sessions" }
+          ]
+        },
+        "dimensionsGA4": {
+          "dimensionValues": [
+            { "listName": "country" }
+          ]
+        },
+        "additionalFields": {}
+      },
+      "id": "swf1-ga4-countries",
+      "name": "GA4 Laender",
+      "type": "n8n-nodes-base.googleAnalytics",
+      "typeVersion": 2,
+      "position": [600, 1300],
+      "credentials": {
+        "googleAnalyticsOAuth2": {
+          "id": "",
+          "name": "Google Analytics OAuth2"
+        }
+      },
+      "notes": "GA4: Laender-Verteilung nach Sessions"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {},
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "id": "swf1-merge",
+      "name": "Alle Ergebnisse zusammenfuehren",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Daten aus allen parallelen Nodes sammeln\nconst init = $('Parameter vorbereiten').first().json;\nconst kalenderwoche = init.kalenderwoche;\n\n// GSC Gesamtperformance\nconst gscTotalRaw = $('GSC Gesamtperformance').first().json;\nconst gscRows = gscTotalRaw.rows || [];\nlet totalClicks = 0, totalImpressions = 0, totalCtr = 0, totalPosition = 0;\nfor (const row of gscRows) {\n  totalClicks += row.clicks || 0;\n  totalImpressions += row.impressions || 0;\n  totalCtr += row.ctr || 0;\n  totalPosition += row.position || 0;\n}\nconst avgCtr = gscRows.length > 0 ? (totalCtr / gscRows.length * 100) : 0;\nconst avgPosition = gscRows.length > 0 ? (totalPosition / gscRows.length) : 0;\n\n// GSC Top 10 Seiten\nconst gscPagesRaw = $('GSC Top 10 Seiten').first().json;\nconst top10Pages = (gscPagesRaw.rows || []).map(row => ({\n  url: row.keys ? row.keys[0] : '',\n  clicks: row.clicks || 0,\n  impressions: row.impressions || 0,\n  ctr: Math.round((row.ctr || 0) * 10000) / 100,\n  position: Math.round((row.position || 0) * 10) / 10\n}));\n\n// GSC Geraete\nconst gscDevicesRaw = $('GSC Geraete-Verteilung').first().json;\nconst deviceRows = gscDevicesRaw.rows || [];\nconst totalDeviceClicks = deviceRows.reduce((s, r) => s + (r.clicks || 0), 0);\nconst devices = {};\nfor (const row of deviceRows) {\n  const device = row.keys ? row.keys[0] : 'UNKNOWN';\n  devices[device] = totalDeviceClicks > 0 ? Math.round((row.clicks / totalDeviceClicks) * 1000) / 10 : 0;\n}\n\n// GA4 Sessions\nlet ga4Sessions = 0, ga4Users = 0, ga4NewUsers = 0;\ntry {\n  const sessionsData = $('GA4 Sessions & Users').all();\n  for (const item of sessionsData) {\n    ga4Sessions += parseInt(item.json.sessions || item.json.metricValues?.[0]?.value || '0');\n    ga4Users += parseInt(item.json.totalUsers || item.json.metricValues?.[1]?.value || '0');\n    ga4NewUsers += parseInt(item.json.newUsers || item.json.metricValues?.[2]?.value || '0');\n  }\n} catch(e) { /* GA4 data may not be available */ }\n\n// GA4 Conversions\nlet conversionsTotal = 0;\nconst conversionsBySource = [];\ntry {\n  const convData = $('GA4 Conversions nach Quelle').all();\n  for (const item of convData) {\n    const conv = parseInt(item.json.conversions || item.json.metricValues?.[0]?.value || '0');\n    conversionsTotal += conv;\n    conversionsBySource.push({\n      source: item.json.sessionSource || item.json.dimensionValues?.[0]?.value || 'unknown',\n      medium: item.json.sessionMedium || item.json.dimensionValues?.[1]?.value || 'unknown',\n      conversions: conv\n    });\n  }\n} catch(e) {}\n\n// GA4 Browsers\nconst browsers = {};\ntry {\n  const browserData = $('GA4 Browser-Verteilung').all();\n  const totalBrowserSessions = browserData.reduce((s, i) => s + parseInt(i.json.sessions || i.json.metricValues?.[0]?.value || '0'), 0);\n  for (const item of browserData) {\n    const name = item.json.browser || item.json.dimensionValues?.[0]?.value || 'Other';\n    const sess = parseInt(item.json.sessions || item.json.metricValues?.[0]?.value || '0');\n    browsers[name] = totalBrowserSessions > 0 ? Math.round((sess / totalBrowserSessions) * 1000) / 10 : 0;\n  }\n} catch(e) {}\n\n// GA4 Countries\nconst countries = {};\ntry {\n  const countryData = $('GA4 Laender').all();\n  for (const item of countryData) {\n    const name = item.json.country || item.json.dimensionValues?.[0]?.value || 'Other';\n    const sess = parseInt(item.json.sessions || item.json.metricValues?.[0]?.value || '0');\n    countries[name] = sess;\n  }\n} catch(e) {}\n\nreturn [{\n  json: {\n    subworkflow: 'gsc_ga',\n    kalenderwoche: kalenderwoche,\n    status: 'success',\n    data: {\n      gsc: {\n        total_clicks: totalClicks,\n        total_impressions: totalImpressions,\n        avg_ctr: Math.round(avgCtr * 100) / 100,\n        avg_position: Math.round(avgPosition * 10) / 10,\n        top10_pages: top10Pages,\n        devices: devices\n      },\n      ga4: {\n        sessions: ga4Sessions,\n        users: ga4Users,\n        new_users: ga4NewUsers,\n        conversions_total: conversionsTotal,\n        conversions_by_source: conversionsBySource.sort((a, b) => b.conversions - a.conversions).slice(0, 10),\n        browsers: browsers,\n        countries: countries\n      }\n    }\n  }\n}];"
+      },
+      "id": "swf1-normalize",
+      "name": "Daten normalisieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 400],
+      "notes": "Alle GSC + GA4 Daten in einheitliches JSON-Format bringen"
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [{ "node": "Parameter vorbereiten", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parameter vorbereiten": {
+      "main": [
+        [
+          { "node": "GSC Gesamtperformance", "type": "main", "index": 0 },
+          { "node": "GSC Top 10 Seiten", "type": "main", "index": 0 },
+          { "node": "GSC Geraete-Verteilung", "type": "main", "index": 0 },
+          { "node": "GA4 Sessions & Users", "type": "main", "index": 0 },
+          { "node": "GA4 Conversions nach Quelle", "type": "main", "index": 0 },
+          { "node": "GA4 Browser-Verteilung", "type": "main", "index": 0 },
+          { "node": "GA4 Laender", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "GSC Gesamtperformance": {
+      "main": [
+        [{ "node": "Alle Ergebnisse zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "GSC Top 10 Seiten": {
+      "main": [
+        [{ "node": "Alle Ergebnisse zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "GSC Geraete-Verteilung": {
+      "main": [
+        [{ "node": "Alle Ergebnisse zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "GA4 Sessions & Users": {
+      "main": [
+        [{ "node": "Alle Ergebnisse zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "GA4 Conversions nach Quelle": {
+      "main": [
+        [{ "node": "Alle Ergebnisse zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "GA4 Browser-Verteilung": {
+      "main": [
+        [{ "node": "Alle Ergebnisse zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "GA4 Laender": {
+      "main": [
+        [{ "node": "Alle Ergebnisse zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Alle Ergebnisse zusammenfuehren": {
+      "main": [
+        [{ "node": "Daten normalisieren", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "SEO Scorecard" },
+    { "name": "Sub-Workflow" }
+  ],
+  "meta": {
+    "instanceId": "",
+    "templateId": "seo-scorecard-subwf1"
+  }
+}

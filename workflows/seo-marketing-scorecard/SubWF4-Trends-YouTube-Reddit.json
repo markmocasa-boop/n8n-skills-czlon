@@ -1,0 +1,290 @@
+{
+  "name": "SEO Scorecard — Sub-WF 4: Trend-Analyse (YouTube + Reddit)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "swf4-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst topics = input.topics || [];\n\n// Datum 7 Tage zurueck fuer YouTube publishedAfter\nconst sevenDaysAgo = new Date();\nsevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);\nconst publishedAfter = sevenDaysAgo.toISOString();\n\nreturn topics.map(topic => ({\n  json: {\n    thema: topic.thema || topic.topic || topic,\n    suchbegriffe: topic.suchbegriffe || topic.search_terms || topic.thema || topic,\n    published_after: publishedAfter\n  }\n}));"
+      },
+      "id": "swf4-init",
+      "name": "Themen vorbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 400]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "search",
+        "query": "={{ $json.suchbegriffe }}",
+        "filters": {
+          "publishedAfter": "={{ $json.published_after }}"
+        },
+        "options": {
+          "order": "viewCount"
+        },
+        "limit": 10
+      },
+      "id": "swf4-yt-search",
+      "name": "YouTube Video-Suche",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [600, 200],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "",
+          "name": "YouTube OAuth2"
+        }
+      },
+      "notes": "Top 10 Videos der letzten Woche nach Views sortiert"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Top 5 Videos fuer Kommentar-Abfrage vorbereiten\nconst videos = $input.all().slice(0, 5);\n\nreturn videos.map(v => ({\n  json: {\n    videoId: v.json.id?.videoId || v.json.videoId || v.json.id || '',\n    title: v.json.snippet?.title || v.json.title || '',\n    views: parseInt(v.json.statistics?.viewCount || v.json.viewCount || '0'),\n    likes: parseInt(v.json.statistics?.likeCount || v.json.likeCount || '0'),\n    thema: $('Themen vorbereiten').first().json.thema\n  }\n}));"
+      },
+      "id": "swf4-yt-top5",
+      "name": "Top 5 Videos auswaehlen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "getComments",
+        "videoId": "={{ $json.videoId }}",
+        "options": {
+          "order": "relevance"
+        },
+        "limit": 50
+      },
+      "id": "swf4-yt-comments",
+      "name": "YouTube Kommentare laden",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [1200, 200],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "",
+          "name": "YouTube OAuth2"
+        }
+      },
+      "notes": "Top 50 Kommentare pro Video (nach Relevanz)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// YouTube Kommentare aggregieren\nconst comments = $input.all();\nconst thema = $('Themen vorbereiten').first().json.thema;\n\n// Alle Kommentar-Texte sammeln\nconst commentTexts = comments.map(c => {\n  const snippet = c.json.snippet?.topLevelComment?.snippet || c.json.snippet || c.json;\n  return {\n    text: snippet.textDisplay || snippet.textOriginal || snippet.text || '',\n    likes: snippet.likeCount || 0,\n    author: snippet.authorDisplayName || ''\n  };\n}).filter(c => c.text.length > 0);\n\n// Top Kommentare nach Likes sortieren\ncommentTexts.sort((a, b) => b.likes - a.likes);\n\nreturn [{\n  json: {\n    thema: thema,\n    plattform: 'YouTube',\n    kommentare: commentTexts.slice(0, 100),\n    total_comments: commentTexts.length\n  }\n}];"
+      },
+      "id": "swf4-yt-aggregate",
+      "name": "YouTube Kommentare aggregieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.reddit.com/search.json?q={{ encodeURIComponent($json.suchbegriffe) }}&sort=top&t=week&limit=10",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "User-Agent", "value": "n8n-seo-scorecard/1.0" }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "swf4-reddit-search",
+      "name": "Reddit Suche",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 600],
+      "notes": "Reddit JSON API: Top Posts der letzten Woche"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reddit Posts parsen und Top 5 fuer Kommentare vorbereiten\nconst redditData = $input.first().json;\nconst posts = (redditData.data?.children || []).slice(0, 5);\nconst thema = $('Themen vorbereiten').first().json.thema;\n\nreturn posts.map(post => ({\n  json: {\n    post_id: post.data?.id || '',\n    title: post.data?.title || '',\n    url: `https://reddit.com${post.data?.permalink || ''}`,\n    subreddit: post.data?.subreddit || '',\n    upvotes: post.data?.ups || 0,\n    comments_count: post.data?.num_comments || 0,\n    permalink: post.data?.permalink || '',\n    thema: thema\n  }\n}));"
+      },
+      "id": "swf4-reddit-parse",
+      "name": "Reddit Posts aufbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 600]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.reddit.com{{ $json.permalink }}.json?limit=30&sort=top",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "User-Agent", "value": "n8n-seo-scorecard/1.0" }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "swf4-reddit-comments",
+      "name": "Reddit Kommentare laden",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 600],
+      "notes": "Top 30 Kommentare pro Reddit Post"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reddit Kommentare aggregieren\nconst allItems = $input.all();\nconst thema = $('Themen vorbereiten').first().json.thema;\n\nconst commentTexts = [];\nfor (const item of allItems) {\n  try {\n    // Reddit JSON gibt Array von 2 Listings zurueck\n    const listings = Array.isArray(item.json) ? item.json : [item.json];\n    for (const listing of listings) {\n      const children = listing?.data?.children || listing?.[1]?.data?.children || [];\n      for (const child of children) {\n        if (child.kind === 't1' && child.data?.body) {\n          commentTexts.push({\n            text: child.data.body.substring(0, 500),\n            likes: child.data.ups || 0,\n            author: child.data.author || ''\n          });\n        }\n      }\n    }\n  } catch(e) {}\n}\n\ncommentTexts.sort((a, b) => b.likes - a.likes);\n\nreturn [{\n  json: {\n    thema: thema,\n    plattform: 'Reddit',\n    kommentare: commentTexts.slice(0, 100),\n    total_comments: commentTexts.length\n  }\n}];"
+      },
+      "id": "swf4-reddit-aggregate",
+      "name": "Reddit Kommentare aggregieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 600]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {},
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "id": "swf4-merge",
+      "name": "YouTube + Reddit zusammenfuehren",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1800, 400]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Du bist ein Marketing-Analyst. Analysiere die folgenden Kommentare zum Thema '{{ $json.thema }}' von YouTube und Reddit.\n\nErstelle:\n1. Eine Zusammenfassung der Hauptdiskussionspunkte (max 200 Woerter)\n2. Die Top 3 diskutierten Unterthemen mit kurzer Beschreibung\n3. Das allgemeine Sentiment (Positiv/Neutral/Negativ)\n4. Relevante Insights fuer Content-Marketing\n\nAntworte auf Deutsch. Antworte im JSON-Format:\n{\n  \"zusammenfassung\": \"...\",\n  \"top3_themen\": [{\"thema\": \"...\", \"beschreibung\": \"...\"}],\n  \"sentiment\": \"...\",\n  \"content_insights\": \"...\"\n}"
+            },
+            {
+              "role": "user",
+              "content": "=Thema: {{ $json.thema }}\n\nYouTube Kommentare ({{ $json.youtube_comments_count || 0 }}):\n{{ JSON.stringify($json.youtube_kommentare?.slice(0, 30) || []) }}\n\nReddit Kommentare ({{ $json.reddit_comments_count || 0 }}):\n{{ JSON.stringify($json.reddit_kommentare?.slice(0, 30) || []) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 1500
+        }
+      },
+      "id": "swf4-gpt-analyse",
+      "name": "GPT-4o Kommentar-Analyse",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [2100, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "KI-Analyse der Kommentare: Zusammenfassung, Themen, Sentiment"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Alle Themen-Ergebnisse sammeln\nconst allItems = $input.all();\nconst topics = [];\n\nfor (const item of allItems) {\n  const data = item.json;\n  let gptAnalysis = {};\n  \n  try {\n    // GPT Antwort parsen\n    const gptText = data.text || data.content || data.message?.content || JSON.stringify(data);\n    const jsonMatch = gptText.match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) {\n      gptAnalysis = JSON.parse(jsonMatch[0]);\n    }\n  } catch(e) {}\n\n  topics.push({\n    thema: data.thema || '',\n    youtube: {\n      top_videos: data.youtube_videos || [],\n      kommentar_zusammenfassung: gptAnalysis.zusammenfassung || '',\n      top3_themen: gptAnalysis.top3_themen || [],\n      sentiment: gptAnalysis.sentiment || 'Neutral'\n    },\n    reddit: {\n      top_posts: data.reddit_posts || [],\n      kommentar_zusammenfassung: gptAnalysis.zusammenfassung || '',\n      top3_themen: gptAnalysis.top3_themen || [],\n      sentiment: gptAnalysis.sentiment || 'Neutral'\n    },\n    content_insights: gptAnalysis.content_insights || ''\n  });\n}\n\n// Kalenderwoche\nconst now = new Date();\nconst dayNum = now.getUTCDay() || 7;\nnow.setUTCDate(now.getUTCDate() + 4 - dayNum);\nconst yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));\nconst weekNo = Math.ceil((((now - yearStart) / 86400000) + 1) / 7);\nconst kw = `${now.getUTCFullYear()}-KW${String(weekNo).padStart(2, '0')}`;\n\nreturn [{\n  json: {\n    subworkflow: 'trends',\n    kalenderwoche: kw,\n    status: 'success',\n    data: {\n      topics: topics\n    }\n  }\n}];"
+      },
+      "id": "swf4-final",
+      "name": "Ergebnis strukturieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 400],
+      "notes": "Alle Themen-Analysen in finales Output-Format bringen"
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [{ "node": "Themen vorbereiten", "type": "main", "index": 0 }]
+      ]
+    },
+    "Themen vorbereiten": {
+      "main": [
+        [
+          { "node": "YouTube Video-Suche", "type": "main", "index": 0 },
+          { "node": "Reddit Suche", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "YouTube Video-Suche": {
+      "main": [
+        [{ "node": "Top 5 Videos auswaehlen", "type": "main", "index": 0 }]
+      ]
+    },
+    "Top 5 Videos auswaehlen": {
+      "main": [
+        [{ "node": "YouTube Kommentare laden", "type": "main", "index": 0 }]
+      ]
+    },
+    "YouTube Kommentare laden": {
+      "main": [
+        [{ "node": "YouTube Kommentare aggregieren", "type": "main", "index": 0 }]
+      ]
+    },
+    "YouTube Kommentare aggregieren": {
+      "main": [
+        [{ "node": "YouTube + Reddit zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Reddit Suche": {
+      "main": [
+        [{ "node": "Reddit Posts aufbereiten", "type": "main", "index": 0 }]
+      ]
+    },
+    "Reddit Posts aufbereiten": {
+      "main": [
+        [{ "node": "Reddit Kommentare laden", "type": "main", "index": 0 }]
+      ]
+    },
+    "Reddit Kommentare laden": {
+      "main": [
+        [{ "node": "Reddit Kommentare aggregieren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Reddit Kommentare aggregieren": {
+      "main": [
+        [{ "node": "YouTube + Reddit zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "YouTube + Reddit zusammenfuehren": {
+      "main": [
+        [{ "node": "GPT-4o Kommentar-Analyse", "type": "main", "index": 0 }]
+      ]
+    },
+    "GPT-4o Kommentar-Analyse": {
+      "main": [
+        [{ "node": "Ergebnis strukturieren", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "SEO Scorecard" },
+    { "name": "Sub-Workflow" }
+  ],
+  "meta": {
+    "instanceId": "",
+    "templateId": "seo-scorecard-subwf4"
+  }
+}

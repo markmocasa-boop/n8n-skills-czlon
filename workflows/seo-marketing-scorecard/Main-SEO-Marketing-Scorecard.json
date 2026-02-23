@@ -1,0 +1,713 @@
+{
+  "name": "SEO Marketing Scorecard — Hauptworkflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 10,
+              "triggerAtDay": 1
+            }
+          ]
+        }
+      },
+      "id": "main-cron",
+      "name": "Jeden Montag 10:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 600]
+    },
+    {
+      "parameters": {},
+      "id": "main-manual",
+      "name": "Manueller Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.spreadsheet_id || '1YOUR_SPREADSHEET_ID' }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Config"
+        },
+        "options": {
+          "range": "A:B"
+        }
+      },
+      "id": "main-config",
+      "name": "Config laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [300, 450],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Liest Konfiguration aus dem Config-Tab: property_url, ga4_property_id, clarity_project_id, keywords, ASINs, Topics, Social Media IDs etc."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Config-Zeilen in Key-Value-Objekt umwandeln\nconst rows = $input.all().map(i => i.json);\nconst config = {};\nfor (const row of rows) {\n  const key = (row.Parameter || row.Key || row.parameter || row.key || '').toString().trim();\n  const val = (row.Wert || row.Value || row.wert || row.value || '').toString().trim();\n  if (key) config[key] = val;\n}\n\n// JSON-Felder parsen\nconst parseJSON = (str) => {\n  try { return JSON.parse(str); } catch { return str; }\n};\n\n// Datumsbereiche berechnen\n// GSC hat 2-3 Tage Verzögerung, daher:\n// date_from = Montag vor 10 Tagen\n// date_to = Sonntag vor 3 Tagen\nconst now = new Date();\nconst today = new Date(now.getFullYear(), now.getMonth(), now.getDate());\n\n// Sonntag vor 3 Tagen (= letzter abgeschlossener Sonntag)\nconst dateTo = new Date(today);\ndateTo.setDate(today.getDate() - 3);\nwhile (dateTo.getDay() !== 0) dateTo.setDate(dateTo.getDate() - 1);\n\n// Montag davor\nconst dateFrom = new Date(dateTo);\ndateFrom.setDate(dateTo.getDate() - 6);\n\n// Vorwoche\nconst prevTo = new Date(dateFrom);\nprevTo.setDate(dateFrom.getDate() - 1);\nconst prevFrom = new Date(prevTo);\nprevFrom.setDate(prevTo.getDate() - 6);\n\nconst fmt = (d) => d.toISOString().split('T')[0];\n\n// Kalenderwoche\nconst d = new Date(dateFrom);\nconst dayNum = d.getUTCDay() || 7;\nd.setUTCDate(d.getUTCDate() + 4 - dayNum);\nconst yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));\nconst weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);\nconst kw = `${d.getUTCFullYear()}-KW${String(weekNo).padStart(2, '0')}`;\n\nreturn [{\n  json: {\n    // Zeiträume\n    date_from: fmt(dateFrom),\n    date_to: fmt(dateTo),\n    prev_date_from: fmt(prevFrom),\n    prev_date_to: fmt(prevTo),\n    kalenderwoche: kw,\n    \n    // SubWF1: GSC + GA4\n    property_url: config.property_url || '',\n    ga4_property_id: config.ga4_property_id || '',\n    \n    // SubWF2: Clarity\n    clarity_project_id: config.clarity_project_id || '',\n    clarity_tenant_id: config.clarity_tenant_id || '',\n    clarity_client_id: config.clarity_client_id || '',\n    clarity_client_secret: config.clarity_client_secret || '',\n    \n    // SubWF3: DataForSEO Keywords\n    keywords: parseJSON(config.keywords || '[]'),\n    location_code: parseInt(config.location_code || '2276', 10),\n    language_code: config.language_code || 'de',\n    se_domain: config.se_domain || 'google.de',\n    website_url: config.website_url || config.property_url || '',\n    \n    // SubWF4: Trends\n    topics: parseJSON(config.topics || '[]'),\n    \n    // SubWF5: Amazon\n    asins: parseJSON(config.asins || '[]'),\n    amazon_domain: config.amazon_domain || 'amazon.de',\n    \n    // SubWF6: Social Media\n    fb_page_id: config.fb_page_id || '',\n    ig_user_id: config.ig_user_id || '',\n    \n    // Report\n    spreadsheet_id: config.spreadsheet_id || '',\n    email_empfaenger: config.email_empfaenger || '',\n    firmenname: config.firmenname || 'Unternehmen',\n    logo_url: config.logo_url || '',\n    \n    // Gewichtungen (Standard: gleichmässig)\n    gewicht_seo: parseFloat(config.gewicht_seo || '0.25'),\n    gewicht_ux: parseFloat(config.gewicht_ux || '0.15'),\n    gewicht_content: parseFloat(config.gewicht_content || '0.15'),\n    gewicht_trends: parseFloat(config.gewicht_trends || '0.15'),\n    gewicht_reputation: parseFloat(config.gewicht_reputation || '0.15'),\n    gewicht_social: parseFloat(config.gewicht_social || '0.15')\n  }\n}];"
+      },
+      "id": "main-prepare",
+      "name": "Config + Datumsbereiche",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 450]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Wochendaten"
+        },
+        "options": {
+          "range": "A:Z"
+        }
+      },
+      "id": "main-prev-data",
+      "name": "Vorwoche laden",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [900, 250],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Letzte Zeile = Vorwochendaten für Delta-Berechnung"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Vorwochendaten aus Google Sheets extrahieren\nconst allRows = $('Vorwoche laden').all().map(i => i.json);\nconst config = $('Config + Datumsbereiche').first().json;\n\n// Letzte Zeile = aktuellste Vorwoche\nconst prevData = allRows.length > 0 ? allRows[allRows.length - 1] : {};\n\n// Config mit Vorwochendaten anreichern\nreturn [{\n  json: {\n    ...config,\n    previous_data: prevData\n  }\n}];"
+      },
+      "id": "main-merge-prev",
+      "name": "Vorwoche mergen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 450]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SEO Scorecard — Sub-WF 1: GSC + GA4 Analyse"
+        },
+        "workflowInputs": {
+          "value": {
+            "date_from": "={{ $json.date_from }}",
+            "date_to": "={{ $json.date_to }}",
+            "property_url": "={{ $json.property_url }}",
+            "ga4_property_id": "={{ $json.ga4_property_id }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "main-exec-swf1",
+      "name": "SubWF1 GSC+GA4",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [1500, 0],
+      "notes": "Sub-Workflow 1: Google Search Console + GA4 Analyse"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SEO Scorecard — Sub-WF 2: Microsoft Clarity Analyse"
+        },
+        "workflowInputs": {
+          "value": {
+            "clarity_project_id": "={{ $json.clarity_project_id }}",
+            "date_from": "={{ $json.date_from }}",
+            "date_to": "={{ $json.date_to }}",
+            "tenant_id": "={{ $json.clarity_tenant_id }}",
+            "client_id": "={{ $json.clarity_client_id }}",
+            "client_secret": "={{ $json.clarity_client_secret }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "main-exec-swf2",
+      "name": "SubWF2 Clarity",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [1500, 250],
+      "notes": "Sub-Workflow 2: Microsoft Clarity UX-Analyse"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SEO Scorecard — Sub-WF 3: DataForSEO Keyword-Tracking"
+        },
+        "workflowInputs": {
+          "value": {
+            "keywords": "={{ $json.keywords }}",
+            "location_code": "={{ $json.location_code }}",
+            "language_code": "={{ $json.language_code }}",
+            "se_domain": "={{ $json.se_domain }}",
+            "website_url": "={{ $json.website_url }}",
+            "previous_data": "={{ $json.previous_data }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "main-exec-swf3",
+      "name": "SubWF3 Keywords",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [1500, 500],
+      "notes": "Sub-Workflow 3: DataForSEO Keyword-Ranking"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SEO Scorecard — Sub-WF 4: Trend-Analyse"
+        },
+        "workflowInputs": {
+          "value": {
+            "topics": "={{ $json.topics }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "main-exec-swf4",
+      "name": "SubWF4 Trends",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [1500, 750],
+      "notes": "Sub-Workflow 4: YouTube + Reddit Trend-Analyse"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SEO Scorecard — Sub-WF 5: Amazon Reviews Analyse"
+        },
+        "workflowInputs": {
+          "value": {
+            "asins": "={{ $json.asins }}",
+            "domain": "={{ $json.amazon_domain }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "main-exec-swf5",
+      "name": "SubWF5 Amazon",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [1500, 1000],
+      "notes": "Sub-Workflow 5: Amazon Review-Monitoring"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SEO Scorecard — Sub-WF 6: Facebook + Instagram Analyse"
+        },
+        "workflowInputs": {
+          "value": {
+            "fb_page_id": "={{ $json.fb_page_id }}",
+            "ig_user_id": "={{ $json.ig_user_id }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "main-exec-swf6",
+      "name": "SubWF6 Social",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [1500, 1250],
+      "notes": "Sub-Workflow 6: Facebook + Instagram Social Media"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Alle 6 Sub-Workflow-Ergebnisse zusammenführen\nconst config = $('Vorwoche mergen').first().json;\nconst results = {};\n\n// Ergebnisse aus allen Branches sammeln\nconst sources = [\n  { name: 'SubWF1 GSC+GA4', key: 'gsc_ga' },\n  { name: 'SubWF2 Clarity', key: 'clarity' },\n  { name: 'SubWF3 Keywords', key: 'keywords_seo' },\n  { name: 'SubWF4 Trends', key: 'trends' },\n  { name: 'SubWF5 Amazon', key: 'amazon' },\n  { name: 'SubWF6 Social', key: 'social_media' }\n];\n\nfor (const src of sources) {\n  try {\n    const data = $(src.name).first().json;\n    results[src.key] = {\n      status: data.status || 'success',\n      data: data.data || data,\n      kalenderwoche: data.kalenderwoche\n    };\n  } catch (e) {\n    results[src.key] = {\n      status: 'error',\n      data: {},\n      error: e.message\n    };\n  }\n}\n\nreturn [{\n  json: {\n    kalenderwoche: config.kalenderwoche,\n    config: config,\n    results: results\n  }\n}];"
+      },
+      "id": "main-merge-results",
+      "name": "Ergebnisse zusammenführen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1900, 450],
+      "notes": "Sammelt alle 6 Sub-Workflow-Ergebnisse in einem Objekt"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst r = input.results;\nconst prev = input.config.previous_data || {};\n\n// ============================\n// SCORE-BERECHNUNG\n// ============================\n\n// Hilfsfunktionen\nconst clamp = (v, min, max) => Math.max(min, Math.min(max, v));\nconst score0to100 = (val) => clamp(Math.round(val), 0, 100);\n\n// --- 1. SEO Score (25%) ---\n// Basierend auf: GSC CTR, Position, Keyword-Rankings, Traffic\nlet seoScore = 50; // Basis\ntry {\n  const gsc = r.gsc_ga?.data?.gsc || {};\n  const kw = r.keywords_seo?.data?.summary || {};\n  \n  // CTR-Score: >5% = 100, <1% = 0\n  const ctrScore = score0to100((gsc.avg_ctr || 0) * 100 / 5 * 100);\n  \n  // Position-Score: 1.0 = 100, >20 = 0\n  const posScore = score0to100((20 - (gsc.avg_position || 20)) / 19 * 100);\n  \n  // Keywords Top10 Anteil\n  const kwTotal = kw.total_tracked || 1;\n  const kwTop10Score = score0to100((kw.keywords_top10 || 0) / kwTotal * 100);\n  \n  // Keywords Verbesserung vs Verschlechterung\n  const kwTrendScore = score0to100(50 + ((kw.keywords_improved || 0) - (kw.keywords_declined || 0)) / kwTotal * 50);\n  \n  seoScore = score0to100((ctrScore * 0.25 + posScore * 0.30 + kwTop10Score * 0.30 + kwTrendScore * 0.15));\n} catch(e) {}\n\n// --- 2. UX Score (15%) ---\n// Basierend auf: Clarity Bounce Rate, Scroll Depth, Rage Clicks, JS Errors\nlet uxScore = 50;\ntry {\n  const cl = r.clarity?.data || {};\n  \n  // Bounce Rate: <30% = 100, >70% = 0\n  const bounceScore = score0to100((70 - (cl.bounce_rate || 50)) / 40 * 100);\n  \n  // Rage Clicks: 0 = 100, >50 = 0\n  const rageScore = score0to100((50 - (cl.rage_clicks || 0)) / 50 * 100);\n  \n  // Dead Clicks: 0 = 100, >100 = 0\n  const deadScore = score0to100((100 - (cl.dead_clicks || 0)) / 100 * 100);\n  \n  // JS Errors: 0 = 100, >20 = 0\n  const errorScore = score0to100((20 - (cl.js_errors || 0)) / 20 * 100);\n  \n  // Session Duration: >180s = 100, <30s = 0\n  const durScore = score0to100(((cl.avg_session_duration_sec || 60) - 30) / 150 * 100);\n  \n  uxScore = score0to100((bounceScore * 0.30 + rageScore * 0.20 + deadScore * 0.15 + errorScore * 0.15 + durScore * 0.20));\n} catch(e) {}\n\n// --- 3. Content Score (15%) ---\n// Basierend auf: GA4 Sessions, Conversions, GSC Top-Pages Performance\nlet contentScore = 50;\ntry {\n  const ga4 = r.gsc_ga?.data?.ga4 || {};\n  const gsc = r.gsc_ga?.data?.gsc || {};\n  const prevSessions = parseFloat(prev.ga4_sessions || '0');\n  const currSessions = ga4.sessions || 0;\n  \n  // Sessions-Wachstum: >10% = 100, <-10% = 0\n  const sessGrowth = prevSessions > 0 ? (currSessions - prevSessions) / prevSessions : 0;\n  const sessScore = score0to100(50 + sessGrowth * 500);\n  \n  // Conversions: >0 = Bonus\n  const convScore = score0to100(Math.min((ga4.conversions_total || 0) * 10, 100));\n  \n  // Top-Pages: Diversität (>= 10 Seiten mit Traffic = gut)\n  const topPages = gsc.top10_pages?.length || 0;\n  const diversityScore = score0to100(topPages / 10 * 100);\n  \n  contentScore = score0to100((sessScore * 0.40 + convScore * 0.30 + diversityScore * 0.30));\n} catch(e) {}\n\n// --- 4. Trends Score (15%) ---\n// Basierend auf: Sentiment-Analyse, Content-Relevanz\nlet trendsScore = 50;\ntry {\n  const topics = r.trends?.data?.topics || [];\n  if (topics.length > 0) {\n    let sentimentSum = 0;\n    let count = 0;\n    for (const t of topics) {\n      const ytSent = (t.youtube?.sentiment || '').toLowerCase();\n      const rdSent = (t.reddit?.sentiment || '').toLowerCase();\n      const sentMap = { 'positiv': 80, 'neutral': 50, 'negativ': 20 };\n      if (ytSent) { sentimentSum += sentMap[ytSent] || 50; count++; }\n      if (rdSent) { sentimentSum += sentMap[rdSent] || 50; count++; }\n    }\n    trendsScore = count > 0 ? score0to100(sentimentSum / count) : 50;\n  }\n} catch(e) {}\n\n// --- 5. Reputation Score (15%) ---\n// Basierend auf: Amazon Reviews, negative Reviews, Probleme\nlet reputationScore = 50;\ntry {\n  const amz = r.amazon?.data || {};\n  const products = amz.products || [];\n  const summary = amz.summary || {};\n  \n  if (products.length > 0) {\n    // Wenig negative Reviews = gut\n    const totalNeg = summary.total_neue_negative || 0;\n    const negScore = score0to100((10 - totalNeg) / 10 * 100);\n    \n    // Durchschnittliche Sternebewertung der negativen Reviews\n    let avgStars = 0;\n    let starCount = 0;\n    for (const p of products) {\n      if (p.avg_sterne_negativ > 0) {\n        avgStars += p.avg_sterne_negativ;\n        starCount++;\n      }\n    }\n    // Höhere Sterne bei negativen Reviews = weniger schlimm\n    const starScore = starCount > 0 ? score0to100((avgStars / starCount - 1) / 2 * 100) : 70;\n    \n    reputationScore = score0to100(negScore * 0.60 + starScore * 0.40);\n  }\n} catch(e) {}\n\n// --- 6. Social Media Score (15%) ---\n// Basierend auf: Engagement Rate, Posts, Reichweite\nlet socialScore = 50;\ntry {\n  const sm = r.social_media?.data || {};\n  const fb = sm.facebook || {};\n  const ig = sm.instagram || {};\n  \n  // Engagement Rate: >5% = 100, 0% = 0\n  const fbEng = score0to100((fb.engagement_rate || 0) / 5 * 100);\n  const igEng = score0to100((ig.engagement_rate || 0) / 5 * 100);\n  \n  // Posts-Aktivität: >= 7 pro Woche = 100\n  const totalPosts = (fb.posts_count || 0) + (ig.posts_count || 0);\n  const postScore = score0to100(totalPosts / 7 * 100);\n  \n  // Reichweite (Instagram)\n  const reachScore = score0to100(Math.min((ig.reach || 0) / 1000 * 100, 100));\n  \n  socialScore = score0to100((fbEng * 0.25 + igEng * 0.25 + postScore * 0.25 + reachScore * 0.25));\n} catch(e) {}\n\n// ============================\n// GESAMT-SCORE (gewichtet)\n// ============================\nconst cfg = input.config;\nconst gesamtScore = score0to100(\n  seoScore * cfg.gewicht_seo +\n  uxScore * cfg.gewicht_ux +\n  contentScore * cfg.gewicht_content +\n  trendsScore * cfg.gewicht_trends +\n  reputationScore * cfg.gewicht_reputation +\n  socialScore * cfg.gewicht_social\n);\n\n// Trend-Pfeil\nconst prevGesamt = parseFloat(prev.gesamt_score || '0');\nlet trendPfeil = '→';\nif (gesamtScore > prevGesamt + 2) trendPfeil = '↑';\nif (gesamtScore < prevGesamt - 2) trendPfeil = '↓';\n\n// ============================\n// DELTAS berechnen\n// ============================\nconst delta = (curr, prevKey) => {\n  const p = parseFloat(prev[prevKey] || '0');\n  return p > 0 ? Math.round((curr - p) / p * 100 * 10) / 10 : null;\n};\n\nconst gsc = r.gsc_ga?.data?.gsc || {};\nconst ga4 = r.gsc_ga?.data?.ga4 || {};\nconst cl = r.clarity?.data || {};\nconst fb = r.social_media?.data?.facebook || {};\nconst ig = r.social_media?.data?.instagram || {};\n\nconst deltas = {\n  clicks: delta(gsc.total_clicks || 0, 'gsc_clicks'),\n  impressions: delta(gsc.total_impressions || 0, 'gsc_impressions'),\n  sessions: delta(ga4.sessions || 0, 'ga4_sessions'),\n  bounce_rate: delta(cl.bounce_rate || 0, 'clarity_bounce_rate'),\n  rage_clicks: delta(cl.rage_clicks || 0, 'clarity_rage_clicks'),\n  fb_engagement: delta(fb.engagement_rate || 0, 'fb_engagement_rate'),\n  ig_engagement: delta(ig.engagement_rate || 0, 'ig_engagement_rate')\n};\n\nreturn [{\n  json: {\n    ...input,\n    scores: {\n      seo: seoScore,\n      ux: uxScore,\n      content: contentScore,\n      trends: trendsScore,\n      reputation: reputationScore,\n      social: socialScore,\n      gesamt: gesamtScore,\n      trend: trendPfeil,\n      prev_gesamt: prevGesamt\n    },\n    deltas: deltas\n  }\n}];"
+      },
+      "id": "main-scores",
+      "name": "Scores berechnen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2200, 450],
+      "notes": "Berechnet alle 6 Teilscores + gewichteten Gesamtscore + Deltas zur Vorwoche"
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Du bist ein erfahrener SEO- und Marketing-Analyst. Erstelle eine prägnante Executive Summary auf Deutsch für den wöchentlichen SEO Marketing Scorecard Report.\n\nStruktur:\n1. **Gesamtbewertung** (2-3 Sätze)\n2. **Top 3 Highlights** (positive Entwicklungen)\n3. **Top 3 Handlungsfelder** (Verbesserungspotenziale)\n4. **Empfohlene Sofortmaßnahmen** (3-5 konkrete Aktionen)\n\nVerwende konkrete Zahlen und Prozentwerte. Sei direkt und handlungsorientiert."
+            },
+            {
+              "role": "user",
+              "content": "=Erstelle eine Executive Summary für {{ $json.config.firmenname }} ({{ $json.kalenderwoche }}).\n\n**Scores:**\n- SEO: {{ $json.scores.seo }}/100\n- UX: {{ $json.scores.ux }}/100\n- Content: {{ $json.scores.content }}/100\n- Trends: {{ $json.scores.trends }}/100\n- Reputation: {{ $json.scores.reputation }}/100\n- Social Media: {{ $json.scores.social }}/100\n- **Gesamt: {{ $json.scores.gesamt }}/100 {{ $json.scores.trend }}** (Vorwoche: {{ $json.scores.prev_gesamt }})\n\n**Kerndaten:**\n- GSC Klicks: {{ $json.results.gsc_ga?.data?.gsc?.total_clicks || 'N/A' }} (Delta: {{ $json.deltas.clicks }}%)\n- GSC Impressionen: {{ $json.results.gsc_ga?.data?.gsc?.total_impressions || 'N/A' }} (Delta: {{ $json.deltas.impressions }}%)\n- GA4 Sessions: {{ $json.results.gsc_ga?.data?.ga4?.sessions || 'N/A' }} (Delta: {{ $json.deltas.sessions }}%)\n- Clarity Bounce Rate: {{ $json.results.clarity?.data?.bounce_rate || 'N/A' }}% (Delta: {{ $json.deltas.bounce_rate }}%)\n- Rage Clicks: {{ $json.results.clarity?.data?.rage_clicks || 'N/A' }} (Delta: {{ $json.deltas.rage_clicks }}%)\n- Keyword Rankings: {{ $json.results.keywords_seo?.data?.summary || 'N/A' }}\n- Amazon neg. Reviews: {{ $json.results.amazon?.data?.summary?.total_neue_negative || 'N/A' }}\n- FB Engagement: {{ $json.results.social_media?.data?.facebook?.engagement_rate || 'N/A' }}%\n- IG Engagement: {{ $json.results.social_media?.data?.instagram?.engagement_rate || 'N/A' }}%\n\n**Trend-Insights:**\n{{ JSON.stringify($json.results.trends?.data?.topics?.map(t => ({ thema: t.thema, youtube_sentiment: t.youtube?.sentiment, reddit_sentiment: t.reddit?.sentiment, insights: t.content_insights })) || []) }}\n\n**Amazon Probleme:**\n{{ JSON.stringify($json.results.amazon?.data?.summary || {}) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.4,
+          "maxTokens": 1500
+        }
+      },
+      "id": "main-gpt-summary",
+      "name": "GPT-4o Executive Summary",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [2500, 450],
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "GPT-4o generiert eine handlungsorientierte Executive Summary auf Deutsch"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Scores berechnen').first().json;\nconst summaryResponse = $input.first().json;\nconst summary = summaryResponse.text || summaryResponse.message?.content || summaryResponse.output || '';\n\nreturn [{\n  json: {\n    ...input,\n    executive_summary: summary\n  }\n}];"
+      },
+      "id": "main-attach-summary",
+      "name": "Summary anfügen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2800, 450]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.config.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Wochendaten"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kalenderwoche": "={{ $json.kalenderwoche }}",
+            "datum": "={{ new Date().toISOString().split('T')[0] }}",
+            "gesamt_score": "={{ $json.scores.gesamt }}",
+            "seo_score": "={{ $json.scores.seo }}",
+            "ux_score": "={{ $json.scores.ux }}",
+            "content_score": "={{ $json.scores.content }}",
+            "trends_score": "={{ $json.scores.trends }}",
+            "reputation_score": "={{ $json.scores.reputation }}",
+            "social_score": "={{ $json.scores.social }}",
+            "trend": "={{ $json.scores.trend }}",
+            "gsc_clicks": "={{ $json.results.gsc_ga?.data?.gsc?.total_clicks || 0 }}",
+            "gsc_impressions": "={{ $json.results.gsc_ga?.data?.gsc?.total_impressions || 0 }}",
+            "gsc_ctr": "={{ $json.results.gsc_ga?.data?.gsc?.avg_ctr || 0 }}",
+            "gsc_position": "={{ $json.results.gsc_ga?.data?.gsc?.avg_position || 0 }}",
+            "ga4_sessions": "={{ $json.results.gsc_ga?.data?.ga4?.sessions || 0 }}",
+            "ga4_users": "={{ $json.results.gsc_ga?.data?.ga4?.users || 0 }}",
+            "ga4_conversions": "={{ $json.results.gsc_ga?.data?.ga4?.conversions_total || 0 }}",
+            "clarity_bounce_rate": "={{ $json.results.clarity?.data?.bounce_rate || 0 }}",
+            "clarity_rage_clicks": "={{ $json.results.clarity?.data?.rage_clicks || 0 }}",
+            "clarity_dead_clicks": "={{ $json.results.clarity?.data?.dead_clicks || 0 }}",
+            "clarity_js_errors": "={{ $json.results.clarity?.data?.js_errors || 0 }}",
+            "kw_avg_position": "={{ $json.results.keywords_seo?.data?.summary?.avg_position || 0 }}",
+            "kw_top10": "={{ $json.results.keywords_seo?.data?.summary?.keywords_top10 || 0 }}",
+            "amazon_neg_reviews": "={{ $json.results.amazon?.data?.summary?.total_neue_negative || 0 }}",
+            "fb_engagement_rate": "={{ $json.results.social_media?.data?.facebook?.engagement_rate || 0 }}",
+            "ig_engagement_rate": "={{ $json.results.social_media?.data?.instagram?.engagement_rate || 0 }}",
+            "fb_fans": "={{ $json.results.social_media?.data?.facebook?.page_fans || 0 }}",
+            "ig_followers": "={{ $json.results.social_media?.data?.instagram?.followers || 0 }}",
+            "executive_summary": "={{ $json.executive_summary }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "main-sheets-weekly",
+      "name": "Wochendaten schreiben",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [3100, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Neue Zeile mit allen KPIs der aktuellen Woche"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.config.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Scores"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kalenderwoche": "={{ $json.kalenderwoche }}",
+            "gesamt": "={{ $json.scores.gesamt }}",
+            "seo": "={{ $json.scores.seo }}",
+            "ux": "={{ $json.scores.ux }}",
+            "content": "={{ $json.scores.content }}",
+            "trends": "={{ $json.scores.trends }}",
+            "reputation": "={{ $json.scores.reputation }}",
+            "social": "={{ $json.scores.social }}",
+            "trend": "={{ $json.scores.trend }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "main-sheets-scores",
+      "name": "Scores schreiben",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [3100, 450],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Score-Verlauf für Charts"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.config.spreadsheet_id }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Keywords"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "kalenderwoche": "={{ $json.kalenderwoche }}",
+            "keywords_json": "={{ JSON.stringify($json.results.keywords_seo?.data?.keywords || []) }}",
+            "avg_position": "={{ $json.results.keywords_seo?.data?.summary?.avg_position || 0 }}",
+            "top3": "={{ $json.results.keywords_seo?.data?.summary?.keywords_top3 || 0 }}",
+            "top10": "={{ $json.results.keywords_seo?.data?.summary?.keywords_top10 || 0 }}",
+            "top20": "={{ $json.results.keywords_seo?.data?.summary?.keywords_top20 || 0 }}",
+            "improved": "={{ $json.results.keywords_seo?.data?.summary?.keywords_improved || 0 }}",
+            "declined": "={{ $json.results.keywords_seo?.data?.summary?.keywords_declined || 0 }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "main-sheets-keywords",
+      "name": "Keywords schreiben",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [3100, 700],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Keyword-Ranking-Verlauf"
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Summary anfügen').first().json;\nconst s = d.scores;\nconst r = d.results;\nconst gsc = r.gsc_ga?.data?.gsc || {};\nconst ga4 = r.gsc_ga?.data?.ga4 || {};\nconst cl = r.clarity?.data || {};\nconst kw = r.keywords_seo?.data?.summary || {};\nconst amz = r.amazon?.data?.summary || {};\nconst fb = r.social_media?.data?.facebook || {};\nconst ig = r.social_media?.data?.instagram || {};\nconst deltas = d.deltas;\nconst cfg = d.config;\n\n// Farbe basierend auf Score\nconst scoreColor = (val) => {\n  if (val >= 75) return '#22c55e';\n  if (val >= 50) return '#f59e0b';\n  return '#ef4444';\n};\n\n// Score-Gauge SVG\nconst gauge = (label, val, emoji) => {\n  const color = scoreColor(val);\n  const pct = val / 100 * 251; // circumference = 2*PI*40 ≈ 251\n  return `\n  <div style=\"text-align:center;width:140px;\">\n    <svg width=\"100\" height=\"100\" viewBox=\"0 0 100 100\">\n      <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"#e5e7eb\" stroke-width=\"8\"/>\n      <circle cx=\"50\" cy=\"50\" r=\"40\" fill=\"none\" stroke=\"${color}\" stroke-width=\"8\" \n        stroke-dasharray=\"${pct} 251\" stroke-linecap=\"round\"\n        transform=\"rotate(-90 50 50)\"/>\n      <text x=\"50\" y=\"45\" text-anchor=\"middle\" font-size=\"22\" font-weight=\"bold\" fill=\"${color}\">${val}</text>\n      <text x=\"50\" y=\"62\" text-anchor=\"middle\" font-size=\"10\" fill=\"#6b7280\">/100</text>\n    </svg>\n    <div style=\"font-weight:600;font-size:13px;color:#374151;\">${emoji} ${label}</div>\n  </div>`;\n};\n\n// Delta-Anzeige\nconst deltaStr = (val) => {\n  if (val === null || val === undefined) return '';\n  const arrow = val > 0 ? '↑' : val < 0 ? '↓' : '→';\n  const color = val > 0 ? '#22c55e' : val < 0 ? '#ef4444' : '#6b7280';\n  return `<span style=\"color:${color};font-weight:600;\">${arrow} ${Math.abs(val)}%</span>`;\n};\n\n// KPI-Zeile\nconst kpiRow = (label, value, delta) => `\n  <tr>\n    <td style=\"padding:8px 12px;border-bottom:1px solid #f3f4f6;font-weight:500;color:#374151;\">${label}</td>\n    <td style=\"padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:700;color:#111827;\">${value}</td>\n    <td style=\"padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:right;\">${deltaStr(delta)}</td>\n  </tr>`;\n\n// Executive Summary Markdown → HTML (einfach)\nconst summaryHtml = (d.executive_summary || '')\n  .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')\n  .replace(/^### (.+)$/gm, '<h3 style=\"color:#1e40af;margin:16px 0 8px;\">$1</h3>')\n  .replace(/^## (.+)$/gm, '<h2 style=\"color:#1e3a5f;margin:20px 0 10px;\">$2</h2>')\n  .replace(/^- (.+)$/gm, '<li style=\"margin:4px 0;\">$1</li>')\n  .replace(/\\n/g, '<br>');\n\nconst html = `\n<!DOCTYPE html>\n<html>\n<head><meta charset=\"utf-8\"><style>\n  body { font-family: 'Segoe UI', system-ui, sans-serif; max-width: 900px; margin: 0 auto; padding: 24px; background: #ffffff; color: #1f2937; }\n  .header { background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; padding: 32px; border-radius: 16px; margin-bottom: 32px; }\n  .header h1 { margin: 0 0 8px; font-size: 28px; }\n  .header p { margin: 0; opacity: 0.9; font-size: 15px; }\n  .scores-grid { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin: 32px 0; padding: 24px; background: #f9fafb; border-radius: 12px; }\n  .gesamt-box { text-align: center; padding: 24px; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px; }\n  .gesamt-score { font-size: 64px; font-weight: 800; color: ${scoreColor(s.gesamt)}; }\n  .gesamt-trend { font-size: 28px; margin-left: 8px; }\n  table { width: 100%; border-collapse: collapse; margin: 16px 0; }\n  .section { background: white; border-radius: 12px; padding: 20px; margin: 20px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }\n  .section h2 { color: #1e3a5f; margin: 0 0 16px; font-size: 18px; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px; }\n  .summary-box { background: #eff6ff; border-left: 4px solid #2563eb; padding: 20px; border-radius: 8px; margin: 24px 0; line-height: 1.7; }\n  .footer { text-align: center; color: #9ca3af; font-size: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; }\n</style></head>\n<body>\n\n<div class=\"header\">\n  ${cfg.logo_url ? '<img src=\"' + cfg.logo_url + '\" style=\"height:40px;margin-bottom:12px;\" alt=\"Logo\">' : ''}\n  <h1>SEO Marketing Scorecard</h1>\n  <p>${cfg.firmenname} | ${d.kalenderwoche} | Berichtszeitraum: ${cfg.date_from} bis ${cfg.date_to}</p>\n</div>\n\n<div class=\"gesamt-box\">\n  <div style=\"font-size:14px;text-transform:uppercase;letter-spacing:2px;color:#6b7280;margin-bottom:8px;\">Gesamtscore</div>\n  <span class=\"gesamt-score\">${s.gesamt}</span><span class=\"gesamt-trend\">${s.trend}</span>\n  <div style=\"color:#6b7280;margin-top:4px;\">Vorwoche: ${s.prev_gesamt} | Veränderung: ${s.gesamt - s.prev_gesamt > 0 ? '+' : ''}${s.gesamt - s.prev_gesamt} Punkte</div>\n</div>\n\n<div class=\"scores-grid\">\n  ${gauge('SEO', s.seo, '🔍')}\n  ${gauge('UX', s.ux, '🖥️')}\n  ${gauge('Content', s.content, '📝')}\n  ${gauge('Trends', s.trends, '📈')}\n  ${gauge('Reputation', s.reputation, '⭐')}\n  ${gauge('Social', s.social, '📱')}\n</div>\n\n<div class=\"section\">\n  <h2>🔍 SEO & Search Performance</h2>\n  <table>\n    ${kpiRow('GSC Klicks', (gsc.total_clicks || 0).toLocaleString('de-DE'), deltas.clicks)}\n    ${kpiRow('GSC Impressionen', (gsc.total_impressions || 0).toLocaleString('de-DE'), deltas.impressions)}\n    ${kpiRow('Ø CTR', ((gsc.avg_ctr || 0) * 100).toFixed(1) + '%', null)}\n    ${kpiRow('Ø Position', (gsc.avg_position || 0).toFixed(1), null)}\n    ${kpiRow('Keywords Top 3', kw.keywords_top3 || 0, null)}\n    ${kpiRow('Keywords Top 10', kw.keywords_top10 || 0, null)}\n    ${kpiRow('Keywords verbessert', kw.keywords_improved || 0, null)}\n    ${kpiRow('Keywords verschlechtert', kw.keywords_declined || 0, null)}\n  </table>\n</div>\n\n<div class=\"section\">\n  <h2>🖥️ User Experience (Clarity)</h2>\n  <table>\n    ${kpiRow('Sessions', (cl.sessions || 0).toLocaleString('de-DE'), null)}\n    ${kpiRow('Seitenaufrufe', (cl.page_views || 0).toLocaleString('de-DE'), null)}\n    ${kpiRow('Bounce Rate', (cl.bounce_rate || 0).toFixed(1) + '%', deltas.bounce_rate)}\n    ${kpiRow('Ø Session-Dauer', Math.round(cl.avg_session_duration_sec || 0) + 's', null)}\n    ${kpiRow('Rage Clicks', cl.rage_clicks || 0, deltas.rage_clicks)}\n    ${kpiRow('Dead Clicks', cl.dead_clicks || 0, null)}\n    ${kpiRow('JS Errors', cl.js_errors || 0, null)}\n  </table>\n</div>\n\n<div class=\"section\">\n  <h2>📝 Traffic & Conversions (GA4)</h2>\n  <table>\n    ${kpiRow('Sessions', (ga4.sessions || 0).toLocaleString('de-DE'), deltas.sessions)}\n    ${kpiRow('Nutzer', (ga4.users || 0).toLocaleString('de-DE'), null)}\n    ${kpiRow('Neue Nutzer', (ga4.new_users || 0).toLocaleString('de-DE'), null)}\n    ${kpiRow('Conversions', ga4.conversions_total || 0, null)}\n  </table>\n</div>\n\n<div class=\"section\">\n  <h2>📱 Social Media</h2>\n  <table>\n    ${kpiRow('Facebook Posts', fb.posts_count || 0, null)}\n    ${kpiRow('FB Likes', (fb.total_likes || 0).toLocaleString('de-DE'), null)}\n    ${kpiRow('FB Engagement Rate', ((fb.engagement_rate || 0)).toFixed(2) + '%', deltas.fb_engagement)}\n    ${kpiRow('FB Fans', (fb.page_fans || 0).toLocaleString('de-DE'), null)}\n    ${kpiRow('Instagram Posts', ig.posts_count || 0, null)}\n    ${kpiRow('IG Likes', (ig.total_likes || 0).toLocaleString('de-DE'), null)}\n    ${kpiRow('IG Engagement Rate', ((ig.engagement_rate || 0)).toFixed(2) + '%', deltas.ig_engagement)}\n    ${kpiRow('IG Follower', (ig.followers || 0).toLocaleString('de-DE'), null)}\n  </table>\n</div>\n\n<div class=\"section\">\n  <h2>⭐ Reputation (Amazon)</h2>\n  <table>\n    ${kpiRow('Neue neg. Reviews', amz.total_neue_negative || 0, null)}\n    ${kpiRow('Häufigstes Problem', amz.haeufigste_beschwerde_kategorie || 'Keine', null)}\n    ${kpiRow('Meiste Beschwerden', amz.produkt_mit_meisten_beschwerden || 'Keine', null)}\n  </table>\n</div>\n\n<div class=\"summary-box\">\n  <h2 style=\"color:#1e40af;margin:0 0 12px;\">📋 Executive Summary (KI-generiert)</h2>\n  ${summaryHtml}\n</div>\n\n<div class=\"footer\">\n  <p>SEO Marketing Scorecard | Automatisch generiert am ${new Date().toLocaleDateString('de-DE')} | Powered by n8n + GPT-4o</p>\n</div>\n\n</body>\n</html>`;\n\nreturn [{ json: { html: html, ...d } }];"
+      },
+      "id": "main-pdf-html",
+      "name": "PDF-HTML generieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3400, 450],
+      "notes": "Erstellt professionellen HTML-Report mit Gauges, KPI-Tabellen und Executive Summary"
+    },
+    {
+      "parameters": {
+        "url": "https://api.html2pdf.app/v1/generate",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"html\": {{ JSON.stringify($json.html) }},\n  \"apiKey\": \"\",\n  \"format\": \"A4\",\n  \"margin\": { \"top\": 20, \"right\": 20, \"bottom\": 20, \"left\": 20 }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "main-pdf-generate",
+      "name": "PDF generieren",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3700, 300],
+      "notes": "Konvertiert HTML zu PDF via html2pdf.app API. Alternativ: Gotenberg, Puppeteer oder n8n HTML-to-PDF Node"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fallback: Wenn kein PDF-API verfügbar, erstelle Download-Link\nconst input = $('PDF-HTML generieren').first().json;\nconst html = input.html;\n\n// Base64-encode the HTML for direct email attachment\nconst htmlBase64 = Buffer.from(html).toString('base64');\n\nreturn [{\n  json: {\n    ...input,\n    pdf_fallback: true,\n    html_base64: htmlBase64,\n    filename: `SEO-Scorecard-${input.kalenderwoche}.html`\n  }\n}];"
+      },
+      "id": "main-pdf-fallback",
+      "name": "PDF Fallback (HTML)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3700, 600],
+      "notes": "Falls PDF-API nicht verfügbar: HTML als Anhang senden"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "output": "fallback"
+      },
+      "id": "main-pdf-switch",
+      "name": "PDF oder Fallback",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [4000, 450]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Summary anfügen').first().json.config.email_empfaenger }}",
+        "subject": "=SEO Marketing Scorecard {{ $('Summary anfügen').first().json.kalenderwoche }} — Score: {{ $('Summary anfügen').first().json.scores.gesamt }}/100 {{ $('Summary anfügen').first().json.scores.trend }}",
+        "emailType": "html",
+        "html": "={{ $('PDF-HTML generieren').first().json.html }}",
+        "options": {
+          "appendAttribution": false,
+          "replyTo": ""
+        }
+      },
+      "id": "main-email",
+      "name": "Report per Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [4300, 450],
+      "credentials": {
+        "smtp": {
+          "id": "",
+          "name": "SMTP"
+        }
+      },
+      "notes": "Sendet den HTML-Report per Email. Subject enthält Score und Trend-Pfeil."
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Summary anfügen').first().json;\nconst s = d.scores;\n\n// Zusammenfassung für Log\nreturn [{\n  json: {\n    status: 'completed',\n    kalenderwoche: d.kalenderwoche,\n    firmenname: d.config.firmenname,\n    gesamt_score: s.gesamt,\n    trend: s.trend,\n    scores: {\n      seo: s.seo,\n      ux: s.ux,\n      content: s.content,\n      trends: s.trends,\n      reputation: s.reputation,\n      social: s.social\n    },\n    email_sent_to: d.config.email_empfaenger,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "main-done",
+      "name": "Fertig",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4600, 450],
+      "notes": "Abschluss-Log mit allen Scores"
+    }
+  ],
+  "connections": {
+    "Jeden Montag 10:00": {
+      "main": [
+        [{ "node": "Config laden", "type": "main", "index": 0 }]
+      ]
+    },
+    "Manueller Start": {
+      "main": [
+        [{ "node": "Config laden", "type": "main", "index": 0 }]
+      ]
+    },
+    "Config laden": {
+      "main": [
+        [{ "node": "Config + Datumsbereiche", "type": "main", "index": 0 }]
+      ]
+    },
+    "Config + Datumsbereiche": {
+      "main": [
+        [
+          { "node": "Vorwoche laden", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Vorwoche laden": {
+      "main": [
+        [{ "node": "Vorwoche mergen", "type": "main", "index": 0 }]
+      ]
+    },
+    "Vorwoche mergen": {
+      "main": [
+        [
+          { "node": "SubWF1 GSC+GA4", "type": "main", "index": 0 },
+          { "node": "SubWF2 Clarity", "type": "main", "index": 0 },
+          { "node": "SubWF3 Keywords", "type": "main", "index": 0 },
+          { "node": "SubWF4 Trends", "type": "main", "index": 0 },
+          { "node": "SubWF5 Amazon", "type": "main", "index": 0 },
+          { "node": "SubWF6 Social", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "SubWF1 GSC+GA4": {
+      "main": [
+        [{ "node": "Ergebnisse zusammenführen", "type": "main", "index": 0 }]
+      ]
+    },
+    "SubWF2 Clarity": {
+      "main": [
+        [{ "node": "Ergebnisse zusammenführen", "type": "main", "index": 0 }]
+      ]
+    },
+    "SubWF3 Keywords": {
+      "main": [
+        [{ "node": "Ergebnisse zusammenführen", "type": "main", "index": 0 }]
+      ]
+    },
+    "SubWF4 Trends": {
+      "main": [
+        [{ "node": "Ergebnisse zusammenführen", "type": "main", "index": 0 }]
+      ]
+    },
+    "SubWF5 Amazon": {
+      "main": [
+        [{ "node": "Ergebnisse zusammenführen", "type": "main", "index": 0 }]
+      ]
+    },
+    "SubWF6 Social": {
+      "main": [
+        [{ "node": "Ergebnisse zusammenführen", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ergebnisse zusammenführen": {
+      "main": [
+        [{ "node": "Scores berechnen", "type": "main", "index": 0 }]
+      ]
+    },
+    "Scores berechnen": {
+      "main": [
+        [{ "node": "GPT-4o Executive Summary", "type": "main", "index": 0 }]
+      ]
+    },
+    "GPT-4o Executive Summary": {
+      "main": [
+        [{ "node": "Summary anfügen", "type": "main", "index": 0 }]
+      ]
+    },
+    "Summary anfügen": {
+      "main": [
+        [
+          { "node": "Wochendaten schreiben", "type": "main", "index": 0 },
+          { "node": "Scores schreiben", "type": "main", "index": 0 },
+          { "node": "Keywords schreiben", "type": "main", "index": 0 },
+          { "node": "PDF-HTML generieren", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "PDF-HTML generieren": {
+      "main": [
+        [
+          { "node": "PDF generieren", "type": "main", "index": 0 },
+          { "node": "PDF Fallback (HTML)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "PDF generieren": {
+      "main": [
+        [{ "node": "PDF oder Fallback", "type": "main", "index": 0 }]
+      ]
+    },
+    "PDF Fallback (HTML)": {
+      "main": [
+        [{ "node": "PDF oder Fallback", "type": "main", "index": 1 }]
+      ]
+    },
+    "PDF oder Fallback": {
+      "main": [
+        [{ "node": "Report per Email", "type": "main", "index": 0 }]
+      ]
+    },
+    "Report per Email": {
+      "main": [
+        [{ "node": "Fertig", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "SEO" },
+    { "name": "Marketing" },
+    { "name": "Scorecard" },
+    { "name": "Reporting" },
+    { "name": "Automatisierung" }
+  ],
+  "triggerCount": 2,
+  "updatedAt": "2026-02-23T10:00:00.000Z",
+  "versionId": "main-v1.0",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": ""
+  },
+  "pinData": {},
+  "notes": "## SEO Marketing Scorecard — Hauptworkflow\n\n### Architektur\nDieser Workflow orchestriert 6 spezialisierte Sub-Workflows und erstellt einen wöchentlichen Marketing-Report.\n\n### Ablauf\n1. **Trigger**: Jeden Montag um 10:00 Uhr (oder manuell)\n2. **Config laden**: Alle Parameter aus Google Sheets (Tab: Config)\n3. **Vorwoche laden**: Vorherige Wochendaten für Delta-Berechnung\n4. **6 Sub-Workflows parallel**:\n   - SubWF1: Google Search Console + GA4\n   - SubWF2: Microsoft Clarity (UX)\n   - SubWF3: DataForSEO Keyword-Rankings\n   - SubWF4: YouTube + Reddit Trends\n   - SubWF5: Amazon Review-Monitoring\n   - SubWF6: Facebook + Instagram\n5. **Scores berechnen**: 6 Teilscores + gewichteter Gesamtscore (0-100)\n6. **GPT-4o Executive Summary**: KI-generierte Handlungsempfehlungen\n7. **Google Sheets**: Wochendaten, Scores, Keywords in 3 Tabs\n8. **PDF-Report**: Professioneller HTML-Report mit Gauges und KPIs\n9. **Email-Versand**: Report an konfigurierte Empfänger\n\n### Score-Gewichtung (Standard)\n- SEO: 25%\n- UX: 15%\n- Content: 15%\n- Trends: 15%\n- Reputation: 15%\n- Social Media: 15%\n\n### Google Sheets Tabs\n- **Config**: Key-Value-Konfiguration\n- **Wochendaten**: Alle KPIs pro Woche (für Zeitreihen)\n- **Scores**: Score-Verlauf (für Charts)\n- **Keywords**: Keyword-Ranking-Details\n\n### Voraussetzungen\n- n8n Credentials: Google Sheets OAuth2, OpenAI API, SMTP\n- Sub-Workflows müssen in derselben n8n-Instanz aktiv sein\n- Google Spreadsheet mit den 4 Tabs vorbereitet\n- Optional: html2pdf.app API Key für PDF-Generierung"
+}

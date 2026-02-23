@@ -1,0 +1,216 @@
+{
+  "name": "SEO Scorecard — Sub-WF 2: Microsoft Clarity",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "swf2-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nreturn [{\n  json: {\n    clarity_project_id: input.clarity_project_id,\n    date_from: input.date_from,\n    date_to: input.date_to,\n    tenant_id: input.tenant_id || '',\n    client_id: input.client_id || '',\n    client_secret: input.client_secret || ''\n  }\n}];"
+      },
+      "id": "swf2-init",
+      "name": "Parameter vorbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://login.microsoftonline.com/{{ $json.tenant_id }}/oauth2/v2.0/token",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "client_id", "value": "={{ $json.client_id }}" },
+            { "name": "client_secret", "value": "={{ $json.client_secret }}" },
+            { "name": "scope", "value": "https://clarity.microsoft.com/.default" },
+            { "name": "grant_type", "value": "client_credentials" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "swf2-auth",
+      "name": "Azure AD Auth Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 400],
+      "notes": "OAuth2 Token fuer Microsoft Clarity API holen"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.clarity.ms/api/v1/projects/{{ $('Parameter vorbereiten').first().json.clarity_project_id }}/dashboard?start={{ $('Parameter vorbereiten').first().json.date_from }}&end={{ $('Parameter vorbereiten').first().json.date_to }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('Azure AD Auth Token').first().json.access_token }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "swf2-dashboard",
+      "name": "Clarity Dashboard Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 100],
+      "notes": "Sessions, Page Views, Bounce Rate, Avg Duration"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.clarity.ms/api/v1/projects/{{ $('Parameter vorbereiten').first().json.clarity_project_id }}/metrics?start={{ $('Parameter vorbereiten').first().json.date_from }}&end={{ $('Parameter vorbereiten').first().json.date_to }}&dimension=page",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('Azure AD Auth Token').first().json.access_token }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "swf2-pages",
+      "name": "Clarity Top Pages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300],
+      "notes": "Top Pages mit Metriken (Views, Engagement)"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.clarity.ms/api/v1/projects/{{ $('Parameter vorbereiten').first().json.clarity_project_id }}/metrics?start={{ $('Parameter vorbereiten').first().json.date_from }}&end={{ $('Parameter vorbereiten').first().json.date_to }}&dimension=device",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('Azure AD Auth Token').first().json.access_token }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "swf2-devices",
+      "name": "Clarity Device Breakdown",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 500],
+      "notes": "Desktop/Mobile/Tablet Verteilung"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.clarity.ms/api/v1/projects/{{ $('Parameter vorbereiten').first().json.clarity_project_id }}/metrics?start={{ $('Parameter vorbereiten').first().json.date_from }}&end={{ $('Parameter vorbereiten').first().json.date_to }}&dimension=country",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('Azure AD Auth Token').first().json.access_token }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "swf2-geo",
+      "name": "Clarity Geo Breakdown",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 700],
+      "notes": "Laender-Verteilung"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.clarity.ms/api/v1/projects/{{ $('Parameter vorbereiten').first().json.clarity_project_id }}/frustration-signals?start={{ $('Parameter vorbereiten').first().json.date_from }}&end={{ $('Parameter vorbereiten').first().json.date_to }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $('Azure AD Auth Token').first().json.access_token }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "swf2-frustration",
+      "name": "Clarity Frustration Signals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 900],
+      "notes": "Dead Clicks, Rage Clicks, JS Errors"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Daten aus allen Clarity API Calls zusammenfuehren\nconst init = $('Parameter vorbereiten').first().json;\n\n// Dashboard Daten\nlet sessions = 0, pageViews = 0, avgDuration = 0, bounceRate = 0, scrollDepth = 0, totalClicks = 0, engagedTime = 0;\ntry {\n  const dashboard = $('Clarity Dashboard Data').first().json;\n  sessions = dashboard.sessions || dashboard.totalSessions || 0;\n  pageViews = dashboard.pageViews || dashboard.totalPageViews || 0;\n  avgDuration = dashboard.avgSessionDuration || dashboard.averageSessionDuration || 0;\n  bounceRate = dashboard.bounceRate || 0;\n  scrollDepth = dashboard.avgScrollDepth || dashboard.averageScrollDepth || 0;\n  totalClicks = dashboard.totalClicks || 0;\n  engagedTime = dashboard.avgEngagedTime || dashboard.averageEngagedTime || 0;\n} catch(e) {}\n\n// Frustration Signals\nlet deadClicks = 0, rageClicks = 0, jsErrors = 0;\ntry {\n  const frustration = $('Clarity Frustration Signals').first().json;\n  deadClicks = frustration.deadClicks || frustration.dead_clicks || 0;\n  rageClicks = frustration.rageClicks || frustration.rage_clicks || 0;\n  jsErrors = frustration.jsErrors || frustration.js_errors || 0;\n} catch(e) {}\n\n// Device Breakdown\nconst deviceBreakdown = {};\ntry {\n  const deviceData = $('Clarity Device Breakdown').first().json;\n  const items = deviceData.data || deviceData.items || deviceData || [];\n  if (Array.isArray(items)) {\n    for (const item of items) {\n      deviceBreakdown[item.dimension || item.device || item.name] = item.percentage || item.sessions || 0;\n    }\n  }\n} catch(e) {\n  deviceBreakdown['N/A'] = 'Daten nicht verfuegbar';\n}\n\n// Top Pages\nconst topPages = [];\ntry {\n  const pagesData = $('Clarity Top Pages').first().json;\n  const items = pagesData.data || pagesData.items || pagesData || [];\n  if (Array.isArray(items)) {\n    for (const item of items.slice(0, 10)) {\n      topPages.push({\n        url: item.dimension || item.page || item.url || '',\n        views: item.pageViews || item.views || 0,\n        avg_time: item.avgTime || item.averageTime || 0\n      });\n    }\n  }\n} catch(e) {}\n\n// Geo Breakdown\nconst geoBreakdown = {};\ntry {\n  const geoData = $('Clarity Geo Breakdown').first().json;\n  const items = geoData.data || geoData.items || geoData || [];\n  if (Array.isArray(items)) {\n    for (const item of items.slice(0, 10)) {\n      geoBreakdown[item.dimension || item.country || item.name] = item.percentage || item.sessions || 0;\n    }\n  }\n} catch(e) {}\n\n// Entry und Exit Pages (werden ggf. aus Top Pages abgeleitet oder sind N/A)\nconst entryPages = topPages.slice(0, 5).map(p => ({ url: p.url, sessions: p.views }));\nconst exitPages = [];\n\nreturn [{\n  json: {\n    subworkflow: 'clarity',\n    kalenderwoche: init.date_from ? (() => {\n      const d = new Date(init.date_from);\n      const dayNum = d.getUTCDay() || 7;\n      d.setUTCDate(d.getUTCDate() + 4 - dayNum);\n      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));\n      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);\n      return `${d.getUTCFullYear()}-KW${String(weekNo).padStart(2, '0')}`;\n    })() : 'unknown',\n    status: 'success',\n    data: {\n      sessions: sessions,\n      page_views: pageViews,\n      avg_session_duration_sec: avgDuration,\n      bounce_rate: bounceRate,\n      avg_scroll_depth: scrollDepth || 'N/A - nur im Dashboard verfuegbar',\n      total_clicks: totalClicks,\n      dead_clicks: deadClicks,\n      rage_clicks: rageClicks,\n      js_errors: jsErrors,\n      avg_engaged_time_sec: engagedTime,\n      device_breakdown: deviceBreakdown,\n      top_pages: topPages,\n      entry_pages: entryPages,\n      exit_pages: exitPages.length > 0 ? exitPages : 'N/A - nur im Dashboard verfuegbar',\n      geo_breakdown: geoBreakdown\n    }\n  }\n}];"
+      },
+      "id": "swf2-normalize",
+      "name": "Daten zusammenfuehren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 400],
+      "notes": "Clarity Daten normalisieren und strukturieren. Nicht-API-Metriken werden als N/A markiert."
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [{ "node": "Parameter vorbereiten", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parameter vorbereiten": {
+      "main": [
+        [{ "node": "Azure AD Auth Token", "type": "main", "index": 0 }]
+      ]
+    },
+    "Azure AD Auth Token": {
+      "main": [
+        [
+          { "node": "Clarity Dashboard Data", "type": "main", "index": 0 },
+          { "node": "Clarity Top Pages", "type": "main", "index": 0 },
+          { "node": "Clarity Device Breakdown", "type": "main", "index": 0 },
+          { "node": "Clarity Geo Breakdown", "type": "main", "index": 0 },
+          { "node": "Clarity Frustration Signals", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Clarity Dashboard Data": {
+      "main": [
+        [{ "node": "Daten zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Clarity Top Pages": {
+      "main": [
+        [{ "node": "Daten zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Clarity Device Breakdown": {
+      "main": [
+        [{ "node": "Daten zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Clarity Geo Breakdown": {
+      "main": [
+        [{ "node": "Daten zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Clarity Frustration Signals": {
+      "main": [
+        [{ "node": "Daten zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "SEO Scorecard" },
+    { "name": "Sub-Workflow" }
+  ],
+  "meta": {
+    "instanceId": "",
+    "templateId": "seo-scorecard-subwf2"
+  }
+}

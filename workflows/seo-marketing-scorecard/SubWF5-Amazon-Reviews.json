@@ -1,0 +1,257 @@
+{
+  "name": "SEO Scorecard — Sub-WF 5: Amazon Reviews Analyse",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "swf5-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst asins = input.asins || [];\n\nreturn asins.map(asin => ({\n  json: {\n    asin: asin.asin || asin.ASIN || asin,\n    produktname: asin.produktname || asin.product_name || asin.asin || asin,\n    domain: input.domain || 'amazon.de'\n  }\n}));"
+      },
+      "id": "swf5-init",
+      "name": "ASINs vorbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/junglee~amazon-reviews-scraper/runs?token={{ $credentials.apifyApi.apiToken }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"productUrls\": [\"https://www.{{ $json.domain }}/dp/{{ $json.asin }}\"],\n  \"maxReviews\": 100,\n  \"filterByStar\": \"one_star,two_star\",\n  \"sortBy\": \"recent\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "swf5-apify-start",
+      "name": "Apify: Amazon Reviews starten",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Apify API Token"
+        }
+      },
+      "notes": "Apify Actor fuer Amazon Reviews starten (1-2 Sterne, letzte 100)"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "swf5-wait",
+      "name": "Warte auf Apify Ergebnis",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [900, 400],
+      "notes": "30 Sekunden warten bis Apify Actor fertig ist"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.apify.com/v2/actor-runs/{{ $('Apify: Amazon Reviews starten').first().json.data?.id }}/dataset/items?token={{ $credentials.apifyApi.apiToken }}&limit=100",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "swf5-apify-results",
+      "name": "Apify: Ergebnisse abrufen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Apify API Token"
+        }
+      },
+      "notes": "Ergebnisse des Apify Amazon Reviews Scraper abrufen"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reviews auf letzte 7 Tage filtern\nconst reviews = $input.all().map(i => i.json);\nconst asin = $('ASINs vorbereiten').first().json.asin;\nconst produktname = $('ASINs vorbereiten').first().json.produktname;\n\n// Datum letzte 7 Tage\nconst sevenDaysAgo = new Date();\nsevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);\n\nconst recentReviews = reviews.filter(r => {\n  const reviewDate = new Date(r.date || r.reviewDate || r.createdAt || '');\n  return reviewDate >= sevenDaysAgo;\n}).map(r => ({\n  titel: r.title || r.reviewTitle || '',\n  sterne: r.stars || r.rating || r.reviewRating || 0,\n  text: (r.text || r.reviewText || r.body || '').substring(0, 500),\n  datum: r.date || r.reviewDate || r.createdAt || '',\n  verifizierter_kauf: r.isVerified || r.verifiedPurchase || false\n}));\n\nconst hasReviews = recentReviews.length > 0;\nconst avgStars = hasReviews ? (recentReviews.reduce((s, r) => s + r.sterne, 0) / recentReviews.length) : 0;\n\nreturn [{\n  json: {\n    asin: asin,\n    produktname: produktname,\n    has_new_reviews: hasReviews,\n    neue_negative_reviews: recentReviews.length,\n    avg_sterne_negativ: Math.round(avgStars * 10) / 10,\n    reviews: recentReviews\n  }\n}];"
+      },
+      "id": "swf5-filter",
+      "name": "Auf letzte 7 Tage filtern",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 400],
+      "notes": "Nur Reviews der letzten 7 Tage behalten"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.has_new_reviews }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "swf5-check",
+      "name": "Neue Reviews vorhanden?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1800, 400]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Analysiere die folgenden negativen Amazon-Reviews (1-2 Sterne) fuer das Produkt '{{ $json.produktname }}'.\n\nErstelle:\n1. Eine Zusammenfassung der Hauptprobleme (max 150 Woerter)\n2. Kategorisierung der Beschwerden mit Haeufigkeit\n3. Die 3 kritischsten Probleme, priorisiert nach Haeufigkeit\n4. Moegliche Verbesserungsvorschlaege\n\nAntworte auf Deutsch im JSON-Format:\n{\n  \"zusammenfassung\": \"...\",\n  \"beschwerden\": [{\"kategorie\": \"...\", \"anzahl\": N, \"beispiel\": \"...\"}],\n  \"top3_probleme\": [\"...\"],\n  \"verbesserungsvorschlaege\": [\"...\"]\n}"
+            },
+            {
+              "role": "user",
+              "content": "=Produkt: {{ $json.produktname }} (ASIN: {{ $json.asin }})\nAnzahl negative Reviews: {{ $json.neue_negative_reviews }}\n\nReviews:\n{{ JSON.stringify($json.reviews) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 1000
+        }
+      },
+      "id": "swf5-gpt-analyse",
+      "name": "GPT-4o Review-Analyse",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.4,
+      "position": [2100, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "KI-Analyse negativer Reviews: Probleme, Beschwerden, Vorschlaege"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Keine neuen negativen Reviews\nconst data = $input.first().json;\n\nreturn [{\n  json: {\n    asin: data.asin,\n    produktname: data.produktname,\n    neue_negative_reviews: 0,\n    avg_sterne_negativ: 0,\n    reviews: [],\n    zusammenfassung: 'Keine neuen negativen Reviews in dieser Woche.',\n    beschwerden: [],\n    top3_probleme: [],\n    verbesserungsvorschlaege: []\n  }\n}];"
+      },
+      "id": "swf5-no-reviews",
+      "name": "Keine neuen Reviews",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2100, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// GPT-Analyse parsen und mit Review-Daten zusammenfuehren\nconst gptData = $input.first().json;\nconst reviewData = $('Auf letzte 7 Tage filtern').first().json;\n\nlet analysis = {};\ntry {\n  const text = gptData.text || gptData.content || gptData.message?.content || JSON.stringify(gptData);\n  const jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = JSON.parse(jsonMatch[0]);\n  }\n} catch(e) {}\n\nreturn [{\n  json: {\n    asin: reviewData.asin,\n    produktname: reviewData.produktname,\n    neue_negative_reviews: reviewData.neue_negative_reviews,\n    avg_sterne_negativ: reviewData.avg_sterne_negativ,\n    reviews: reviewData.reviews,\n    zusammenfassung: analysis.zusammenfassung || '',\n    beschwerden: analysis.beschwerden || [],\n    top3_probleme: analysis.top3_probleme || [],\n    verbesserungsvorschlaege: analysis.verbesserungsvorschlaege || []\n  }\n}];"
+      },
+      "id": "swf5-merge-analysis",
+      "name": "Analyse zusammenfuehren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 300]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {},
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "id": "swf5-merge-all",
+      "name": "Alle Produkte zusammenfuehren",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2700, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Alle Produkt-Ergebnisse zu finalem Output zusammenfassen\nconst allProducts = $input.all().map(i => i.json);\n\n// Summary berechnen\nconst totalNewNegative = allProducts.reduce((s, p) => s + (p.neue_negative_reviews || 0), 0);\nconst productWithMost = allProducts.sort((a, b) => (b.neue_negative_reviews || 0) - (a.neue_negative_reviews || 0))[0];\n\n// Haeufigste Beschwerde-Kategorie ueber alle Produkte\nconst categoryCount = {};\nfor (const p of allProducts) {\n  for (const b of (p.beschwerden || [])) {\n    categoryCount[b.kategorie] = (categoryCount[b.kategorie] || 0) + (b.anzahl || 1);\n  }\n}\nconst sortedCategories = Object.entries(categoryCount).sort(([,a], [,b]) => b - a);\n\n// Kalenderwoche\nconst now = new Date();\nconst dayNum = now.getUTCDay() || 7;\nnow.setUTCDate(now.getUTCDate() + 4 - dayNum);\nconst yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));\nconst weekNo = Math.ceil((((now - yearStart) / 86400000) + 1) / 7);\nconst kw = `${now.getUTCFullYear()}-KW${String(weekNo).padStart(2, '0')}`;\n\nreturn [{\n  json: {\n    subworkflow: 'amazon',\n    kalenderwoche: kw,\n    status: 'success',\n    data: {\n      products: allProducts,\n      summary: {\n        total_neue_negative: totalNewNegative,\n        produkt_mit_meisten_beschwerden: productWithMost?.produktname || 'N/A',\n        haeufigste_beschwerde_kategorie: sortedCategories.length > 0 ? sortedCategories[0][0] : 'N/A'\n      }\n    }\n  }\n}];"
+      },
+      "id": "swf5-final",
+      "name": "Gesamt-Summary erstellen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3000, 400],
+      "notes": "Alle Produkt-Reviews aggregieren und Summary erstellen"
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [{ "node": "ASINs vorbereiten", "type": "main", "index": 0 }]
+      ]
+    },
+    "ASINs vorbereiten": {
+      "main": [
+        [{ "node": "Apify: Amazon Reviews starten", "type": "main", "index": 0 }]
+      ]
+    },
+    "Apify: Amazon Reviews starten": {
+      "main": [
+        [{ "node": "Warte auf Apify Ergebnis", "type": "main", "index": 0 }]
+      ]
+    },
+    "Warte auf Apify Ergebnis": {
+      "main": [
+        [{ "node": "Apify: Ergebnisse abrufen", "type": "main", "index": 0 }]
+      ]
+    },
+    "Apify: Ergebnisse abrufen": {
+      "main": [
+        [{ "node": "Auf letzte 7 Tage filtern", "type": "main", "index": 0 }]
+      ]
+    },
+    "Auf letzte 7 Tage filtern": {
+      "main": [
+        [{ "node": "Neue Reviews vorhanden?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Neue Reviews vorhanden?": {
+      "main": [
+        [{ "node": "GPT-4o Review-Analyse", "type": "main", "index": 0 }],
+        [{ "node": "Keine neuen Reviews", "type": "main", "index": 0 }]
+      ]
+    },
+    "GPT-4o Review-Analyse": {
+      "main": [
+        [{ "node": "Analyse zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Analyse zusammenfuehren": {
+      "main": [
+        [{ "node": "Alle Produkte zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Keine neuen Reviews": {
+      "main": [
+        [{ "node": "Alle Produkte zusammenfuehren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Alle Produkte zusammenfuehren": {
+      "main": [
+        [{ "node": "Gesamt-Summary erstellen", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "SEO Scorecard" },
+    { "name": "Sub-Workflow" }
+  ],
+  "meta": {
+    "instanceId": "",
+    "templateId": "seo-scorecard-subwf5"
+  }
+}
