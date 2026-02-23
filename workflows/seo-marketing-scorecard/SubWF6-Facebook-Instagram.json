@@ -1,0 +1,177 @@
+{
+  "name": "SEO Scorecard — Sub-WF 6: Facebook + Instagram Analyse",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "swf6-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\n// Datum 7 Tage zurueck\nconst sevenDaysAgo = new Date();\nsevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);\n\nreturn [{\n  json: {\n    fb_page_id: input.fb_page_id || '',\n    ig_user_id: input.ig_user_id || '',\n    since: sevenDaysAgo.toISOString().split('T')[0],\n    since_unix: Math.floor(sevenDaysAgo.getTime() / 1000),\n    until_unix: Math.floor(Date.now() / 1000)\n  }\n}];"
+      },
+      "id": "swf6-init",
+      "name": "Parameter vorbereiten",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.fb_page_id }}/posts?fields=id,message,created_time,permalink_url,full_picture,shares,likes.summary(true).limit(0),comments.summary(true).limit(0),reactions.summary(true).limit(0)&since={{ $json.since_unix }}&until={{ $json.until_unix }}&limit=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "swf6-fb-posts",
+      "name": "Facebook Posts laden",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 200],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "",
+          "name": "Facebook Graph API OAuth2"
+        }
+      },
+      "notes": "Facebook Page Posts der letzten 7 Tage mit Likes, Comments, Shares, Reactions"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.fb_page_id }}/insights?metric=page_impressions,page_engaged_users,page_post_engagements,page_fans&period=day&since={{ $json.since_unix }}&until={{ $json.until_unix }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "swf6-fb-insights",
+      "name": "Facebook Page Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 400],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "",
+          "name": "Facebook Graph API OAuth2"
+        }
+      },
+      "notes": "Facebook Page Insights: Impressions, Engaged Users, Post Engagements, Fans"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v19.0/{{ $('Parameter vorbereiten').first().json.ig_user_id }}/media?fields=id,caption,timestamp,media_type,media_url,permalink,like_count,comments_count,thumbnail_url&limit=50",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "swf6-ig-media",
+      "name": "Instagram Media laden",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 600],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "",
+          "name": "Facebook Graph API OAuth2"
+        }
+      },
+      "notes": "Instagram Business Posts mit Like Count und Comments Count"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v19.0/{{ $('Parameter vorbereiten').first().json.ig_user_id }}/insights?metric=impressions,reach,profile_views,follower_count&period=day&since={{ $('Parameter vorbereiten').first().json.since_unix }}&until={{ $('Parameter vorbereiten').first().json.until_unix }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "swf6-ig-insights",
+      "name": "Instagram Account Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 800],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "",
+          "name": "Facebook Graph API OAuth2"
+        }
+      },
+      "notes": "Instagram Insights: Impressions, Reach, Profile Views, Follower Count"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Facebook Posts parsen und nach Engagement sortieren\nconst init = $('Parameter vorbereiten').first().json;\nconst sinceDate = new Date(init.since);\n\n// --- FACEBOOK POSTS ---\nlet fbPosts = [];\nlet fbTotalLikes = 0, fbTotalComments = 0, fbTotalShares = 0, fbTotalReactions = 0;\ntry {\n  const fbData = $('Facebook Posts laden').first().json;\n  const rawPosts = fbData.data || [];\n  \n  for (const post of rawPosts) {\n    const postDate = new Date(post.created_time);\n    if (postDate < sinceDate) continue;\n    \n    const likes = post.likes?.summary?.total_count || 0;\n    const comments = post.comments?.summary?.total_count || 0;\n    const shares = post.shares?.count || 0;\n    const reactions = post.reactions?.summary?.total_count || 0;\n    const engagement = likes + comments + shares;\n    \n    fbTotalLikes += likes;\n    fbTotalComments += comments;\n    fbTotalShares += shares;\n    fbTotalReactions += reactions;\n    \n    fbPosts.push({\n      id: post.id,\n      message: (post.message || '').substring(0, 200),\n      created_time: post.created_time,\n      permalink: post.permalink_url || '',\n      likes: likes,\n      comments: comments,\n      shares: shares,\n      reactions: reactions,\n      engagement: engagement,\n      image: post.full_picture || ''\n    });\n  }\n  // Nach Engagement sortieren (Likes + Comments + Shares)\n  fbPosts.sort((a, b) => b.engagement - a.engagement);\n} catch(e) {}\n\n// --- FACEBOOK PAGE INSIGHTS ---\nlet fbImpressions = 0, fbEngagedUsers = 0, fbPostEngagements = 0, fbFans = 0;\ntry {\n  const insightsData = $('Facebook Page Insights').first().json;\n  const metrics = insightsData.data || [];\n  for (const metric of metrics) {\n    const values = metric.values || [];\n    const sum = values.reduce((s, v) => s + (v.value || 0), 0);\n    switch(metric.name) {\n      case 'page_impressions': fbImpressions = sum; break;\n      case 'page_engaged_users': fbEngagedUsers = sum; break;\n      case 'page_post_engagements': fbPostEngagements = sum; break;\n      case 'page_fans': fbFans = values.length > 0 ? values[values.length - 1].value || 0 : 0; break;\n    }\n  }\n} catch(e) {}\n\n// --- INSTAGRAM MEDIA ---\nlet igPosts = [];\nlet igTotalLikes = 0, igTotalComments = 0;\ntry {\n  const igData = $('Instagram Media laden').first().json;\n  const rawMedia = igData.data || [];\n  \n  for (const media of rawMedia) {\n    const postDate = new Date(media.timestamp);\n    if (postDate < sinceDate) continue;\n    \n    const likes = media.like_count || 0;\n    const comments = media.comments_count || 0;\n    const engagement = likes + comments;\n    \n    igTotalLikes += likes;\n    igTotalComments += comments;\n    \n    igPosts.push({\n      id: media.id,\n      caption: (media.caption || '').substring(0, 200),\n      timestamp: media.timestamp,\n      permalink: media.permalink || '',\n      media_type: media.media_type || '',\n      likes: likes,\n      comments: comments,\n      engagement: engagement,\n      thumbnail: media.thumbnail_url || media.media_url || ''\n    });\n  }\n  // Nach Engagement sortieren\n  igPosts.sort((a, b) => b.engagement - a.engagement);\n} catch(e) {}\n\n// --- INSTAGRAM INSIGHTS ---\nlet igImpressions = 0, igReach = 0, igProfileViews = 0, igFollowers = 0;\ntry {\n  const igInsights = $('Instagram Account Insights').first().json;\n  const metrics = igInsights.data || [];\n  for (const metric of metrics) {\n    const values = metric.values || [];\n    const sum = values.reduce((s, v) => s + (v.value || 0), 0);\n    switch(metric.name) {\n      case 'impressions': igImpressions = sum; break;\n      case 'reach': igReach = sum; break;\n      case 'profile_views': igProfileViews = sum; break;\n      case 'follower_count': igFollowers = values.length > 0 ? values[values.length - 1].value || 0 : 0; break;\n    }\n  }\n} catch(e) {}\n\n// --- Engagement Rates berechnen ---\nconst fbEngagementRate = fbPosts.length > 0 && fbFans > 0\n  ? Math.round(((fbTotalLikes + fbTotalComments + fbTotalShares) / fbPosts.length / fbFans) * 10000) / 100\n  : 0;\n\nconst igEngagementRate = igPosts.length > 0 && igFollowers > 0\n  ? Math.round(((igTotalLikes + igTotalComments) / igPosts.length / igFollowers) * 10000) / 100\n  : 0;\n\n// --- Kalenderwoche ---\nconst now = new Date();\nconst dayNum = now.getUTCDay() || 7;\nnow.setUTCDate(now.getUTCDate() + 4 - dayNum);\nconst yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));\nconst weekNo = Math.ceil((((now - yearStart) / 86400000) + 1) / 7);\nconst kw = `${now.getUTCFullYear()}-KW${String(weekNo).padStart(2, '0')}`;\n\nreturn [{\n  json: {\n    subworkflow: 'social_media',\n    kalenderwoche: kw,\n    status: 'success',\n    data: {\n      facebook: {\n        posts_count: fbPosts.length,\n        total_likes: fbTotalLikes,\n        total_comments: fbTotalComments,\n        total_shares: fbTotalShares,\n        total_reactions: fbTotalReactions,\n        engagement_rate: fbEngagementRate,\n        page_impressions: fbImpressions,\n        page_engaged_users: fbEngagedUsers,\n        page_fans: fbFans,\n        top_posts: fbPosts.slice(0, 5)\n      },\n      instagram: {\n        posts_count: igPosts.length,\n        total_likes: igTotalLikes,\n        total_comments: igTotalComments,\n        engagement_rate: igEngagementRate,\n        impressions: igImpressions,\n        reach: igReach,\n        profile_views: igProfileViews,\n        followers: igFollowers,\n        top_posts: igPosts.slice(0, 5)\n      },\n      summary: {\n        total_posts: fbPosts.length + igPosts.length,\n        total_engagement: fbTotalLikes + fbTotalComments + fbTotalShares + igTotalLikes + igTotalComments,\n        best_platform: (fbTotalLikes + fbTotalComments + fbTotalShares) > (igTotalLikes + igTotalComments) ? 'Facebook' : 'Instagram',\n        best_post_fb: fbPosts.length > 0 ? { message: fbPosts[0].message, engagement: fbPosts[0].engagement, permalink: fbPosts[0].permalink } : null,\n        best_post_ig: igPosts.length > 0 ? { caption: igPosts[0].caption, engagement: igPosts[0].engagement, permalink: igPosts[0].permalink } : null\n      }\n    }\n  }\n}];"
+      },
+      "id": "swf6-normalize",
+      "name": "Daten zusammenfuehren und strukturieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 400],
+      "notes": "Facebook + Instagram Daten normalisieren: Posts nach Engagement sortieren, Insights aggregieren, Engagement Rates berechnen"
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [{ "node": "Parameter vorbereiten", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parameter vorbereiten": {
+      "main": [
+        [
+          { "node": "Facebook Posts laden", "type": "main", "index": 0 },
+          { "node": "Facebook Page Insights", "type": "main", "index": 0 },
+          { "node": "Instagram Media laden", "type": "main", "index": 0 },
+          { "node": "Instagram Account Insights", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Facebook Posts laden": {
+      "main": [
+        [{ "node": "Daten zusammenfuehren und strukturieren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Facebook Page Insights": {
+      "main": [
+        [{ "node": "Daten zusammenfuehren und strukturieren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Instagram Media laden": {
+      "main": [
+        [{ "node": "Daten zusammenfuehren und strukturieren", "type": "main", "index": 0 }]
+      ]
+    },
+    "Instagram Account Insights": {
+      "main": [
+        [{ "node": "Daten zusammenfuehren und strukturieren", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "SEO Scorecard" },
+    { "name": "Sub-Workflow" }
+  ],
+  "meta": {
+    "instanceId": "",
+    "templateId": "seo-scorecard-subwf6"
+  }
+}
